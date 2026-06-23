@@ -90,6 +90,8 @@ export async function enrichArticle(
     const { object } = await generateObject({
       model: google(model),
       schema: cardNewsTextSchema,
+      // 본문이 길어 출력이 잘리지 않도록 충분히 크게(표·차트 포함).
+      maxOutputTokens: 16384,
       system:
         "당신은 해외/국내 AI·AX 아티클을 한국 실무자용으로 옮기는 AI 에디터입니다. " +
         "요약가가 아니라 **번역·재구성 에디터**입니다 — 원문의 내용을 압축해 버리지 말고, " +

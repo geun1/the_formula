@@ -101,23 +101,30 @@ function parseBlocks(src: string): Block[] {
       const lang = (fence[1] || "").toLowerCase();
       const buf: string[] = [];
       i++;
-      while (i < lines.length && !/^```\s*$/.test(lines[i].trim())) {
+      let closed = false;
+      while (i < lines.length) {
+        if (/^```\s*$/.test(lines[i].trim())) {
+          closed = true;
+          break;
+        }
         buf.push(lines[i]);
         i++;
       }
+      // 닫는 펜스가 없으면(출력 잘림) 깨진 꼬리는 버린다.
+      if (!closed) continue;
       const text = buf.join("\n").trim();
       if (lang === "chart") {
         try {
           const spec = JSON.parse(text) as ChartSpec;
           if (Array.isArray(spec?.data) && spec.data.length) {
             blocks.push({ type: "chart", spec });
-            continue;
           }
         } catch {
-          /* 차트 파싱 실패 → 코드블록으로 폴백 */
+          /* 차트 JSON 깨짐 → 아무것도 렌더하지 않음(깨진 블록 방지) */
         }
+        continue;
       }
-      blocks.push({ type: "code", lang, text });
+      if (text) blocks.push({ type: "code", lang, text });
       continue;
     }
 
