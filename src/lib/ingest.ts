@@ -43,6 +43,12 @@ export const articleInputSchema = z.object({
     .min(1)
     .optional()
     .describe("수집 시각 ISO-8601 (생략 시 현재 시각)"),
+  coverImageUrl: z
+    .string()
+    .trim()
+    .url()
+    .optional()
+    .describe("원문 대표 이미지 URL(og:image 등, 생략 가능)"),
   category: z.enum(CATEGORIES).optional().describe("카테고리(생략 가능)"),
 });
 export type ArticleInput = z.infer<typeof articleInputSchema>;
@@ -129,6 +135,7 @@ export async function ingestArticles(
         sourceUrl: a.sourceUrl,
         originalTitle: a.originalTitle,
         rawContent: a.rawContent,
+        coverImageUrl: a.coverImageUrl ?? null,
         category: (a.category ?? null) as Category | null,
         collectedAt: a.collectedAt ? new Date(a.collectedAt) : now,
         status: "pending" as EnrichmentStatus,
@@ -261,7 +268,8 @@ export async function publishArticle(
     summary: cn.summary,
     keywords: cn.keywords ?? [],
     body: cn.body,
-    coverImageUrl: cn.coverImageUrl ?? "",
+    // AI 가 커버를 안 주면(="") 크롤 시 추출한 원문 대표 이미지를 사용.
+    coverImageUrl: cn.coverImageUrl || raw.coverImageUrl || "",
   };
 
   const [post] = await db

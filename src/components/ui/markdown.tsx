@@ -6,11 +6,9 @@ export type MarkdownProps = {
   className?: string;
 };
 
-// 인라인 토큰: **볼드** / *이탤릭*(또는 _이탤릭_) / `코드` 를 React 노드로.
-// 의존성 없이 최소한으로 처리해요(레퍼런스 d-block 톤).
+// 인라인 토큰: [텍스트](url) / **볼드** / *이탤릭* / `코드` 를 React 노드로.
 function renderInline(text: string, keyPrefix: string): ReactNode[] {
   const out: ReactNode[] = [];
-  // [텍스트](url) | **bold** | __bold__ | `code` | *em* | _em_ 순서로 매칭.
   const re =
     /(\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)|\*\*([^*]+)\*\*|__([^_]+)__|`([^`]+)`|\*([^*]+)\*|_([^_]+)_)/g;
   let last = 0;
@@ -36,15 +34,31 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
   return out;
 }
 
+type ChartDatum = { label: string; value: number };
+type ChartSpec = { title?: string; unit?: string; data: ChartDatum[] };
+
 type Block =
   | { type: "h"; level: number; text: string }
   | { type: "p"; text: string }
   | { type: "quote"; text: string }
   | { type: "hr" }
   | { type: "ul"; items: string[] }
-  | { type: "ol"; items: string[] };
+  | { type: "ol"; items: string[] }
+  | { type: "code"; lang: string; text: string }
+  | { type: "chart"; spec: ChartSpec }
+  | { type: "table"; head: string[]; rows: string[][] };
 
-// 줄 단위 파서: #→소제목, -/*→불릿, 1.→번호, 빈 줄→문단 경계.
+const splitRow = (line: string): string[] =>
+  line
+    .trim()
+    .replace(/^\||\|$/g, "")
+    .split("|")
+    .map((c) => c.trim());
+
+const isTableSep = (line: string): boolean =>
+  /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)+\|?\s*$/.test(line);
+
+// 줄 단위 파서: 펜스코드(```/```chart) · 표 · #제목 · >인용 · ---수평선 · 리스트 · 문단.
 function parseBlocks(src: string): Block[] {
   const lines = src.replace(/\r\n/g, "\n").split("\n");
   const blocks: Block[] = [];
@@ -66,27 +80,68 @@ function parseBlocks(src: string): Block[] {
   };
   const flushList = () => {
     if (list) {
-      blocks.push(
-        list.ordered
-          ? { type: "ol", items: list.items }
-          : { type: "ul", items: list.items },
-      );
+      blocks.push(list.ordered ? { type: "ol", items: list.items } : { type: "ul", items: list.items });
       list = null;
     }
   };
+  const flushAll = () => {
+    flushPara();
+    flushQuote();
+    flushList();
+  };
 
-  for (const raw of lines) {
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
     const line = raw.trim();
+
+    // 펜스 코드블록 ```lang ... ```
+    const fence = /^```(\w*)\s*$/.exec(line);
+    if (fence) {
+      flushAll();
+      const lang = (fence[1] || "").toLowerCase();
+      const buf: string[] = [];
+      i++;
+      while (i < lines.length && !/^```\s*$/.test(lines[i].trim())) {
+        buf.push(lines[i]);
+        i++;
+      }
+      const text = buf.join("\n").trim();
+      if (lang === "chart") {
+        try {
+          const spec = JSON.parse(text) as ChartSpec;
+          if (Array.isArray(spec?.data) && spec.data.length) {
+            blocks.push({ type: "chart", spec });
+            continue;
+          }
+        } catch {
+          /* 차트 파싱 실패 → 코드블록으로 폴백 */
+        }
+      }
+      blocks.push({ type: "code", lang, text });
+      continue;
+    }
+
+    // 표: 헤더행 + 구분행
+    if (line.includes("|") && i + 1 < lines.length && isTableSep(lines[i + 1])) {
+      flushAll();
+      const head = splitRow(line);
+      const rows: string[][] = [];
+      i += 2; // 헤더 + 구분행 건너뜀
+      while (i < lines.length && lines[i].includes("|") && lines[i].trim()) {
+        rows.push(splitRow(lines[i]));
+        i++;
+      }
+      i--; // for 루프 증가분 보정
+      blocks.push({ type: "table", head, rows });
+      continue;
+    }
+
     if (!line) {
-      flushPara();
-      flushList();
-      flushQuote();
+      flushAll();
       continue;
     }
     if (/^(-{3,}|\*{3,}|_{3,})$/.test(line)) {
-      flushPara();
-      flushList();
-      flushQuote();
+      flushAll();
       blocks.push({ type: "hr" });
       continue;
     }
@@ -99,9 +154,7 @@ function parseBlocks(src: string): Block[] {
     }
     const h = /^(#{1,6})\s+(.*)$/.exec(line);
     if (h) {
-      flushPara();
-      flushList();
-      flushQuote();
+      flushAll();
       blocks.push({ type: "h", level: h[1].length, text: h[2].trim() });
       continue;
     }
@@ -127,21 +180,43 @@ function parseBlocks(src: string): Block[] {
       list.items.push(ul[1].trim());
       continue;
     }
-    // 일반 텍스트 줄 — 진행 중 리스트/인용을 끊고 문단에 누적.
     flushList();
     flushQuote();
     para.push(line);
   }
-  flushPara();
-  flushList();
-  flushQuote();
+  flushAll();
   return blocks;
 }
 
+function BarChart({ spec, k }: { spec: ChartSpec; k: string }) {
+  const max = Math.max(...spec.data.map((d) => (Number.isFinite(d.value) ? d.value : 0)), 0) || 1;
+  return (
+    <figure className="md-chart">
+      {spec.title && <figcaption className="md-chart-title">{spec.title}</figcaption>}
+      <div className="md-chart-body">
+        {spec.data.map((d, j) => (
+          <div className="md-bar-row" key={`${k}-${j}`}>
+            <span className="md-bar-label">{d.label}</span>
+            <span className="md-bar-track">
+              <span
+                className="md-bar-fill"
+                style={{ width: `${Math.max(2, (Number(d.value) / max) * 100)}%` }}
+              />
+            </span>
+            <span className="md-bar-val">
+              {d.value}
+              {spec.unit ?? ""}
+            </span>
+          </div>
+        ))}
+      </div>
+    </figure>
+  );
+}
+
 /**
- * 의존성 없는 최소 마크다운 렌더러(서버 컴포넌트).
- * 아티클/공식 본문이 raw 마크다운("## 제목", "**볼드**", "1. …")으로 노출되던 걸
- * 레퍼런스 .d-block 톤(제목=h3, 문단=p, 리스트, strong/em/code)으로 렌더해요.
+ * 의존성 없는 마크다운 렌더러(서버 컴포넌트).
+ * 제목·문단·리스트·인용·수평선·**링크/볼드/코드** + **표·차트(```chart)·코드블록**.
  */
 export function Markdown({ content, className }: MarkdownProps) {
   const src = (content ?? "").trim();
@@ -149,32 +224,19 @@ export function Markdown({ content, className }: MarkdownProps) {
   const blocks = parseBlocks(src);
 
   return (
-    <div className={className}>
+    <div className={["md", className].filter(Boolean).join(" ")}>
       {blocks.map((b, i) => {
         const key = `b-${i}`;
-        if (b.type === "h") {
+        if (b.type === "h")
           return b.level >= 3 ? (
             <h4 key={key}>{renderInline(b.text, key)}</h4>
           ) : (
             <h3 key={key}>{renderInline(b.text, key)}</h3>
           );
-        }
-        if (b.type === "p") {
-          return <p key={key}>{renderInline(b.text, key)}</p>;
-        }
-        if (b.type === "hr") {
-          return (
-            <hr
-              key={key}
-              style={{
-                border: 0,
-                borderTop: "1px solid var(--border)",
-                margin: "20px 0",
-              }}
-            />
-          );
-        }
-        if (b.type === "quote") {
+        if (b.type === "p") return <p key={key}>{renderInline(b.text, key)}</p>;
+        if (b.type === "hr")
+          return <hr key={key} style={{ border: 0, borderTop: "1px solid var(--border)", margin: "20px 0" }} />;
+        if (b.type === "quote")
           return (
             <blockquote
               key={key}
@@ -192,42 +254,51 @@ export function Markdown({ content, className }: MarkdownProps) {
               {renderInline(b.text, key)}
             </blockquote>
           );
-        }
-        if (b.type === "ol") {
+        if (b.type === "ol")
           return (
             <ol key={key} style={{ paddingLeft: 20, margin: "8px 0" }}>
               {b.items.map((it, j) => (
-                <li
-                  key={`${key}-${j}`}
-                  style={{
-                    fontSize: "15.5px",
-                    color: "var(--t2)",
-                    lineHeight: 1.7,
-                    marginBottom: 4,
-                  }}
-                >
-                  {renderInline(it, `${key}-${j}`)}
-                </li>
+                <li key={`${key}-${j}`}>{renderInline(it, `${key}-${j}`)}</li>
               ))}
             </ol>
           );
-        }
+        if (b.type === "ul")
+          return (
+            <ul key={key} style={{ paddingLeft: 20, margin: "8px 0" }}>
+              {b.items.map((it, j) => (
+                <li key={`${key}-${j}`}>{renderInline(it, `${key}-${j}`)}</li>
+              ))}
+            </ul>
+          );
+        if (b.type === "chart") return <BarChart key={key} spec={b.spec} k={key} />;
+        if (b.type === "code")
+          return (
+            <pre key={key} className="md-code">
+              <code>{b.text}</code>
+            </pre>
+          );
+        // table
         return (
-          <ul key={key} style={{ paddingLeft: 20, margin: "8px 0" }}>
-            {b.items.map((it, j) => (
-              <li
-                key={`${key}-${j}`}
-                style={{
-                  fontSize: "15.5px",
-                  color: "var(--t2)",
-                  lineHeight: 1.7,
-                  marginBottom: 4,
-                }}
-              >
-                {renderInline(it, `${key}-${j}`)}
-              </li>
-            ))}
-          </ul>
+          <div key={key} className="md-table-wrap">
+            <table className="md-table">
+              <thead>
+                <tr>
+                  {b.head.map((c, j) => (
+                    <th key={`${key}-h-${j}`}>{renderInline(c, `${key}-h-${j}`)}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {b.rows.map((r, j) => (
+                  <tr key={`${key}-r-${j}`}>
+                    {r.map((c, l) => (
+                      <td key={`${key}-r-${j}-${l}`}>{renderInline(c, `${key}-r-${j}-${l}`)}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         );
       })}
     </div>

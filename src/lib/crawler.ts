@@ -19,6 +19,7 @@ const MAX_RAW = 40000;
 
 const UA = "Mozilla/5.0 (compatible; TheFormulaBot/1.0; +https://the-formula-silk.vercel.app)";
 
+type MediaNode = { $?: { url?: string }; url?: string } | undefined;
 type FeedItem = {
   title?: string;
   link?: string;
@@ -28,15 +29,56 @@ type FeedItem = {
   contentSnippet?: string;
   "content:encoded"?: string;
   summary?: string;
+  enclosure?: { url?: string; type?: string };
+  "media:content"?: MediaNode;
+  "media:thumbnail"?: MediaNode;
 };
 
 const parser: Parser<unknown, FeedItem> = new Parser({
   timeout: 15000,
   headers: { "User-Agent": UA },
   customFields: {
-    item: ["content:encoded", "content", "contentSnippet", "summary"],
+    item: [
+      "content:encoded",
+      "content",
+      "contentSnippet",
+      "summary",
+      "media:content",
+      "media:thumbnail",
+    ],
   },
 });
+
+/** RSS 항목에서 대표 이미지 추출(enclosure / media:* / content 내 첫 img). */
+function rssImage(it: FeedItem): string | null {
+  if (it.enclosure?.url && /^https?:/.test(it.enclosure.url) && /image|\.(jpe?g|png|webp|gif)/i.test(it.enclosure.type ?? it.enclosure.url)) {
+    return it.enclosure.url;
+  }
+  const media = it["media:content"] ?? it["media:thumbnail"];
+  const murl = media?.$?.url ?? media?.url;
+  if (murl && /^https?:/.test(murl)) return murl;
+  const html = it["content:encoded"] || it.content || "";
+  const m = /<img[^>]+src=["']([^"']+)["']/i.exec(html);
+  if (m && /^https?:/.test(m[1])) return m[1];
+  return null;
+}
+
+/** HTML <head> 에서 og:image / twitter:image 추출(절대 URL 로 보정). */
+function ogImage(html: string, baseUrl: string): string | null {
+  const re = /<meta[^>]+(?:property|name)=["'](?:og:image(?::secure_url)?|twitter:image(?::src)?)["'][^>]*>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html)) !== null) {
+    const c = /content=["']([^"']+)["']/i.exec(m[0]);
+    if (c?.[1]) {
+      try {
+        return new URL(c[1], baseUrl).toString();
+      } catch {
+        /* skip */
+      }
+    }
+  }
+  return null;
+}
 
 // AI/AX 관련성 판정. 짧은 영어 약어(ai/ax/llm…)는 **단어 경계**로 매칭해야
 // email/again/available 같은 단어에 오탐하지 않음. 한국어/긴 영어는 substring.
@@ -135,10 +177,10 @@ async function fetchFeed(source: Source): Promise<FeedItem[]> {
  * 원문 URL 을 따라가 본문 전체를 추출(Readability + linkedom).
  * 발췌만 주는 RSS(긱뉴스/뉴스사이트 등) 대응 — 실패/비HTML/너무 짧으면 null.
  */
-export async function fetchArticleText(
+export async function fetchArticle(
   url: string,
   timeoutMs = 12000,
-): Promise<string | null> {
+): Promise<{ text: string | null; image: string | null }> {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
@@ -148,9 +190,10 @@ export async function fetchArticleText(
       cache: "no-store",
       redirect: "follow",
     });
-    if (!res.ok) return null;
-    if (!(res.headers.get("content-type") || "").includes("html")) return null;
+    if (!res.ok) return { text: null, image: null };
+    if (!(res.headers.get("content-type") || "").includes("html")) return { text: null, image: null };
     const html = await res.text();
+    const image = ogImage(html, res.url || url);
     const { document } = parseHTML(html);
     const article = new Readability(document as unknown as Document, {
       charThreshold: 200,
@@ -158,12 +201,20 @@ export async function fetchArticleText(
     const text = article?.textContent
       ? article.textContent.replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim()
       : "";
-    return text.length > 200 ? text : null;
+    return { text: text.length > 200 ? text : null, image };
   } catch {
-    return null;
+    return { text: null, image: null };
   } finally {
     clearTimeout(t);
   }
+}
+
+/** 본문 텍스트만(하위호환 — 재생성 스크립트 등). */
+export async function fetchArticleText(
+  url: string,
+  timeoutMs = 12000,
+): Promise<string | null> {
+  return (await fetchArticle(url, timeoutMs)).text;
 }
 
 /** 동시성 제한 병렬 매핑. */
@@ -191,6 +242,7 @@ type Candidate = {
   link: string;
   title: string;
   rssBody: string;
+  rssImg: string | null;
   dateStr?: string;
 };
 
@@ -249,23 +301,26 @@ export async function crawlSources(opts: CrawlOptions = {}): Promise<CrawlResult
       if (filterRelevance && !isRelevant(`${title} ${body}`)) continue;
 
       seenUrls.add(link);
-      candidates.push({ s, link, title, rssBody: body, dateStr });
+      candidates.push({ s, link, title, rssBody: body, rssImg: rssImage(it), dateStr });
       kept++;
     }
     perSource.push({ name: s.name, fetched: items.length, kept });
   }
 
-  // 2) 전문 보강 — RSS 본문이 짧으면(발췌) 원문 URL 따라가 전체 추출(동시성 5)
+  // 2) 전문 + 이미지 보강 — RSS 본문이 짧으면(발췌) 원문 URL 따라가 전체/og:image 추출(동시성 5)
   let fullFetched = 0;
-  const bodies = await mapLimit(candidates, 5, async (c) => {
+  const enriched = await mapLimit(candidates, 5, async (c) => {
+    let body = c.rssBody;
+    let image = c.rssImg;
     if (fullText && c.rssBody.length < FULLTEXT_THRESHOLD) {
-      const full = await fetchArticleText(c.link);
-      if (full && full.length > c.rssBody.length) {
+      const got = await fetchArticle(c.link);
+      if (got.text && got.text.length > c.rssBody.length) {
+        body = got.text;
         fullFetched++;
-        return full;
       }
+      if (!image && got.image) image = got.image;
     }
-    return c.rssBody;
+    return { body, image };
   });
 
   // 3) ArticleInput 으로 마감
@@ -273,7 +328,8 @@ export async function crawlSources(opts: CrawlOptions = {}): Promise<CrawlResult
     sourceName: c.s.name,
     sourceUrl: c.link,
     originalTitle: c.title.slice(0, 300),
-    rawContent: `${c.title}\n\n${bodies[i]}`.slice(0, MAX_RAW),
+    rawContent: `${c.title}\n\n${enriched[i].body}`.slice(0, MAX_RAW),
+    coverImageUrl: enriched[i].image ?? undefined,
     category: c.s.category,
     collectedAt: c.dateStr ?? undefined,
   }));

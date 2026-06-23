@@ -1,0 +1,1 @@
+ALTER TABLE "raw_article" ADD COLUMN "coverImageUrl" text;

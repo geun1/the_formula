@@ -136,6 +136,16 @@ export default async function ArticleDetailPage({ params }: PageProps) {
           {/* 리드(한줄요약) */}
           {post.oneLiner && <p className="d-lead">{post.oneLiner}</p>}
 
+          {/* 원문 대표 이미지(있으면) */}
+          {post.cardnews?.coverImageUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={post.cardnews.coverImageUrl}
+              alt=""
+              className="d-cover"
+            />
+          )}
+
           {/* 본문: 카드뉴스 요약 → 본문 */}
           {post.cardnews ? (
             <>

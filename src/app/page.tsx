@@ -133,6 +133,15 @@ function FeedCard({ post }: { post: FeedPost }) {
   return (
     <article className="feed-card">
       <Link href={href} className={`fcover ${cover}`}>
+        {post.cardnews?.coverImageUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={post.cardnews.coverImageUrl}
+            alt=""
+            className="fcover-img"
+            loading="lazy"
+          />
+        ) : null}
         <span className="fcover-cat">{categoryLabel(post.category)}</span>
       </Link>
       <div className="fcb">

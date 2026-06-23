@@ -301,3 +301,200 @@ body {
 .lf-cta:hover {
   background: var(--accent-hover);
 }
+
+/* =============================================================================
+   상세 사이드바 액션(.ac-follow/.ac-coffee) — <a>/<button> 혼용이라 height:42px
+   안에서 텍스트가 가운데 정렬 안 되던 문제(특히 채팅=ac-coffee 가 <a>) 보강.
+   reference.css 는 이 클래스에 display/정렬을 안 줘서 override 충돌 없음.
+   ========================================================================== */
+.ac-follow,
+.ac-coffee {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+/* =============================================================================
+   본문 마크다운(.md) — 읽기 좋은 타이포 + 표 · 차트 · 코드블록
+   reference.css 의 .d-block p/h3 보다 구체적으로(.d-block .md ...) 덮어써요.
+   ========================================================================== */
+.d-block .md p,
+.md > p {
+  font-size: 16px;
+  color: var(--t1);
+  line-height: 1.8;
+  margin: 14px 0;
+}
+.d-block .md h3,
+.md h3 {
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin: 30px 0 10px;
+  color: var(--t1);
+}
+.md h4 {
+  font-size: 16.5px;
+  font-weight: 700;
+  margin: 22px 0 8px;
+  color: var(--t1);
+}
+.md > *:first-child {
+  margin-top: 0;
+}
+.md strong {
+  font-weight: 700;
+  color: var(--t1);
+}
+.md a {
+  color: var(--blue);
+  font-weight: 600;
+}
+.md :not(pre) > code {
+  background: var(--bg-2);
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 0.9em;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  color: var(--accent-hover);
+}
+.md ul,
+.md ol {
+  margin: 12px 0;
+  padding-left: 22px;
+}
+.md li {
+  font-size: 16px;
+  color: var(--t1);
+  line-height: 1.75;
+  margin-bottom: 7px;
+}
+
+/* 코드블록 */
+.md-code {
+  background: #0d1730;
+  color: #e6edf6;
+  border-radius: 12px;
+  padding: 16px 18px;
+  overflow-x: auto;
+  font-size: 13.5px;
+  line-height: 1.6;
+  margin: 16px 0;
+}
+.md-code code {
+  background: none;
+  padding: 0;
+  color: inherit;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+}
+
+/* 표 */
+.md-table-wrap {
+  overflow-x: auto;
+  margin: 18px 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.md-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14.5px;
+}
+.md-table th,
+.md-table td {
+  padding: 10px 14px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+.md-table thead th {
+  background: var(--bg-2);
+  font-weight: 700;
+  color: var(--t1);
+  white-space: nowrap;
+}
+.md-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.md-table td {
+  color: var(--t2);
+}
+
+/* 차트(가로 막대) */
+.md-chart {
+  margin: 18px 0;
+  padding: 16px 18px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.md-chart-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--t1);
+  margin-bottom: 12px;
+}
+.md-chart-body {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.md-bar-row {
+  display: grid;
+  grid-template-columns: 116px 1fr 58px;
+  align-items: center;
+  gap: 10px;
+}
+.md-bar-label {
+  font-size: 13px;
+  color: var(--t2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.md-bar-track {
+  height: 16px;
+  background: var(--bg-2);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.md-bar-fill {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--blue), #5b8def);
+  border-radius: 6px;
+}
+.md-bar-val {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--t1);
+  text-align: right;
+}
+
+/* 아티클 상세 커버 이미지 */
+.d-cover {
+  width: 100%;
+  max-height: 420px;
+  object-fit: cover;
+  border-radius: var(--r);
+  margin: 4px 0 8px;
+  background: var(--bg-2);
+}
+
+/* 카드 커버 이미지(og:image) — 그라데이션 위에 채움, 카테고리는 그림자로 가독성 */
+.fcover {
+  position: relative;
+}
+.fcover-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.fcover-cat {
+  position: relative;
+  z-index: 1;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+}

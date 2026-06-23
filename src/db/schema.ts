@@ -358,6 +358,8 @@ export const rawArticles = pgTable(
     sourceUrl: text("sourceUrl").notNull().unique(), // 중복 제거 키
     originalTitle: text("originalTitle").notNull(),
     rawContent: text("rawContent").notNull(),
+    // 원문 대표 이미지(og:image / RSS media). 발행 시 cardnews.coverImageUrl 로.
+    coverImageUrl: text("coverImageUrl"),
     category: text("category").$type<Category>(), // nullable
     collectedAt: timestamp("collectedAt", { mode: "date" }),
     status: text("status")
