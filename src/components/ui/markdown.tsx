@@ -40,6 +40,7 @@ type Block =
   | { type: "h"; level: number; text: string }
   | { type: "p"; text: string }
   | { type: "quote"; text: string }
+  | { type: "hr" }
   | { type: "ul"; items: string[] }
   | { type: "ol"; items: string[] };
 
@@ -80,6 +81,13 @@ function parseBlocks(src: string): Block[] {
       flushPara();
       flushList();
       flushQuote();
+      continue;
+    }
+    if (/^(-{3,}|\*{3,}|_{3,})$/.test(line)) {
+      flushPara();
+      flushList();
+      flushQuote();
+      blocks.push({ type: "hr" });
       continue;
     }
     const q = /^>\s?(.*)$/.exec(line);
@@ -153,6 +161,18 @@ export function Markdown({ content, className }: MarkdownProps) {
         }
         if (b.type === "p") {
           return <p key={key}>{renderInline(b.text, key)}</p>;
+        }
+        if (b.type === "hr") {
+          return (
+            <hr
+              key={key}
+              style={{
+                border: 0,
+                borderTop: "1px solid var(--border)",
+                margin: "20px 0",
+              }}
+            />
+          );
         }
         if (b.type === "quote") {
           return (
