@@ -1,26 +1,303 @@
 @import "tailwindcss";
 
+/* =============================================================================
+   The Formula — 토스 디자인 토큰 (라이트 전용)
+   REFERENCE_DIFF.md §A 기준. accent 토스블루 #3182F6 · Pretendard ·
+   소프트 섀도우 도입(기존 border-only → shadow + border) · radius 16/12/8.
+   ========================================================================== */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* ---- 토스 그레이스케일 ---- */
+  --background: #f7f8fa; /* --bg 페이지 배경 */
+  --bg-2: #f2f4f6; /* --bg-2 더 짙은 배경(섹션 구분) */
+  --surface: #ffffff; /* 카드/헤더 표면 */
+  --card: #ffffff;
+  --card-hover: #f7f8fa;
+
+  /* ---- 텍스트 (토스 t1/t2/t3) ---- */
+  --foreground: #191f28; /* --t1 제목/본문 */
+  --t1: #191f28;
+  --t2: #4e5968; /* 보조 */
+  --t3: #8b95a1; /* 옅은 */
+  --muted: #4e5968; /* 별칭(=t2) — 기존 컴포넌트 호환 */
+  --muted-soft: #8b95a1; /* 별칭(=t3) */
+
+  /* ---- 보더 ---- */
+  --border: #eaedf0;
+  --border-2: #e5e8eb;
+  --border-soft: #f2f4f6; /* 별칭 — 카드 내부 구분선 */
+
+  /* ---- accent: 토스블루 ---- */
+  --accent: #3182f6; /* --blue */
+  --accent-hover: #2272eb; /* --blue-press */
+  --accent-press: #2272eb;
+  --accent-soft: #eaf2fe; /* --blue-weak */
+  --accent-softer: #d6e6fd; /* blue-weak 보다 한 단계 진한 틴트 */
+  --accent-dim: #2272eb; /* 하위호환 별칭 */
+
+  /* ---- 시맨틱 ---- */
+  --green: #13b864;
+  --green-soft: #e6f8ef;
+
+  /* ---- radius 스케일 (16/12/8) ---- */
+  --r: 16px;
+  --r-sm: 12px;
+  --r-xs: 8px;
+
+  /* ---- 소프트 섀도우 ---- */
+  --shadow: 0 2px 12px rgba(0, 0, 0, 0.08), 0 1px 4px rgba(0, 0, 0, 0.05);
+  --shadow-lift: 0 8px 28px rgba(17, 24, 39, 0.11);
+
+  /* ---- 레이아웃 ---- */
+  --maxw: 1280px;
+
+  /* ---- 히어로 다크 밴드 ---- */
+  --hero: #071330;
 }
 
 @theme inline {
   --color-background: var(--background);
+  --color-bg-2: var(--bg-2);
+  --color-surface: var(--surface);
+  --color-card: var(--card);
+  --color-card-hover: var(--card-hover);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-t1: var(--t1);
+  --color-t2: var(--t2);
+  --color-t3: var(--t3);
+  --color-muted: var(--muted);
+  --color-muted-soft: var(--muted-soft);
+  --color-border: var(--border);
+  --color-border-2: var(--border-2);
+  --color-border-soft: var(--border-soft);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-press: var(--accent-press);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-softer: var(--accent-softer);
+  --color-accent-dim: var(--accent-dim);
+  --color-green: var(--green);
+  --color-green-soft: var(--green-soft);
+  --color-hero: var(--hero);
+
+  --radius-xl: var(--r);
+  --radius-lg: var(--r-sm);
+  --radius-md: var(--r-xs);
+
+  --shadow-soft: var(--shadow);
+  --shadow-lift: var(--shadow-lift);
+
+  /* Pretendard 를 sans 로 */
+  --font-sans:
+    "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont,
+    system-ui, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --font-mono:
+    "SFMono-Regular", "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  color-scheme: light;
+  scroll-behavior: smooth;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--background);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-2);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--t3);
+}
+
+::selection {
+  background: var(--accent-soft);
+  color: var(--accent-hover);
+}
+
+/* .gradient-text: 토스블루 단색 그라데이션 (보라 잔재 제거) */
+.gradient-text {
+  background: linear-gradient(135deg, #3182f6 0%, #2272eb 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* =============================================================================
+   소프트 섀도우 유틸 — 토스 카드 핵심 (border-only 였던 것을 그림자로 전환)
+   ========================================================================== */
+.shadow-soft {
+  box-shadow: var(--shadow);
+}
+.shadow-soft-lg,
+.shadow-lift {
+  box-shadow: var(--shadow-lift);
+}
+
+/* 카드 hover lift: 살짝 떠오르며 그림자 강화 */
+.card-lift {
+  transition:
+    box-shadow 0.18s ease,
+    transform 0.18s ease,
+    border-color 0.18s ease;
+}
+.card-lift:hover {
+  box-shadow: var(--shadow-lift);
+  transform: translateY(-2px);
+}
+
+/* 다크 히어로 밴드 위 검색박스 등에서 쓰는 유틸 */
+.hero-band {
+  background: var(--hero);
+}
+
+/* =============================================================================
+   애니메이션
+   ========================================================================== */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.6s ease-out forwards;
+}
+.animate-fade-up-delay-1 {
+  animation: fade-up 0.6s ease-out 0.1s forwards;
+  opacity: 0;
+}
+.animate-fade-up-delay-2 {
+  animation: fade-up 0.6s ease-out 0.2s forwards;
+  opacity: 0;
+}
+.animate-fade-up-delay-3 {
+  animation: fade-up 0.6s ease-out 0.3s forwards;
+  opacity: 0;
+}
+
+/* 토스트 슬라이드-업 */
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 12px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+.animate-toast-in {
+  animation: toast-in 0.22s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* =============================================================================
+   아티클 상세 — '이 아티클로 만든 공식' 연결 섹션 + 큰 CTA
+   ========================================================================== */
+.linked-formulas {
+  margin: 40px 0 8px;
+  padding: 24px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  box-shadow: var(--shadow);
+}
+.lf-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--t1);
+}
+.lf-head b {
+  color: var(--blue);
+}
+.lf-list {
+  list-style: none;
+  margin: 16px 0 4px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.lf-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: var(--r-sm);
+  transition: background 0.15s;
+}
+.lf-item:hover {
+  background: var(--bg-2);
+}
+.lf-main {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.lf-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--t1);
+}
+.lf-desc {
+  font-size: 14px;
+  color: var(--t2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lf-like {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+}
+.lf-empty {
+  margin: 16px 0 4px;
+  font-size: 14px;
+  color: var(--t3);
+}
+.lf-cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 18px;
+  padding: 15px;
+  border-radius: var(--r-sm);
+  background: var(--accent);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  transition: background 0.15s;
+}
+.lf-cta:hover {
+  background: var(--accent-hover);
 }

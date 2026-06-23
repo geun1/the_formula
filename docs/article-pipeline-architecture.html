@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Formula · 아티클 수집 파이프라인 아키텍처</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --paper:  #f7f8fa;
+      --ink:    #18181b;
+      --muted:  #5b6472;
+      --soft:   #94a3b8;
+      --accent: #2563eb;
+      --font-sans:  'Geist', system-ui, sans-serif;
+      --font-serif: 'Instrument Serif', serif;
+      --font-mono:  'Geist Mono', ui-monospace, monospace;
+    }
+    body {
+      font-family: var(--font-sans);
+      background: var(--paper);
+      color: var(--ink);
+      min-height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+      padding: 3rem 2rem;
+    }
+    .frame { max-width: 1120px; width: 100%; }
+    .eyebrow {
+      font-family: var(--font-mono); font-size: 0.66rem; font-weight: 500;
+      letter-spacing: 0.18em; text-transform: uppercase; color: var(--accent);
+      margin-bottom: 0.5rem;
+    }
+    h1 {
+      font-family: var(--font-serif); font-size: clamp(1.5rem, 2.4vw + 0.75rem, 2.05rem);
+      font-weight: 400; letter-spacing: -0.02em; line-height: 1.15; color: var(--ink);
+      margin-bottom: 0.5rem;
+    }
+    .sub { color: var(--muted); font-size: 0.92rem; margin-bottom: 1.5rem; max-width: 60ch; }
+    svg { width: 100%; min-width: 920px; display: block; }
+    .cards {
+      margin-top: 1.75rem; display: grid; gap: 1rem;
+      grid-template-columns: 1.1fr 1fr 0.95fr;
+    }
+    .card {
+      background: #ffffff; border: 1px solid rgba(24,24,27,0.12); border-radius: 6px;
+      padding: 1.1rem 1.2rem;
+    }
+    .card .eyebrow { margin-bottom: 0.4rem; }
+    .card h3 { font-size: 0.92rem; font-weight: 600; margin-bottom: 0.35rem; display: flex; align-items: center; gap: 0.45rem; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+    .card p { font-size: 0.82rem; line-height: 1.5; color: var(--muted); }
+    code { font-family: var(--font-mono); font-size: 0.78em; color: var(--ink); background: rgba(37,99,235,0.07); padding: 0.05em 0.3em; border-radius: 3px; }
+    footer { margin-top: 1.75rem; padding-top: 0.9rem; border-top: 1px solid rgba(24,24,27,0.1);
+      font-family: var(--font-mono); font-size: 0.66rem; color: var(--soft); letter-spacing: 0.04em; }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <p class="eyebrow">Architecture · 아티클 수집 파이프라인</p>
+    <h1>수집과 AI 가공을 분리한 파이프라인</h1>
+    <p class="sub">크롤러는 원문을 큐에 적재만 하고, 카드뉴스 생성은 별도 AI 서버가 비동기로 처리합니다. <code>raw_article</code> 큐가 두 서버를 잇는 채널입니다.</p>
+
+    <svg viewBox="0 0 1080 500" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#5b6472"/></marker>
+        <marker id="arrow-blue" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#2563eb"/></marker>
+      </defs>
+
+      <rect width="100%" height="100%" fill="#f7f8fa"/>
+
+      <!-- Trust boundary: The Formula -->
+      <rect x="288" y="104" width="520" height="300" rx="8" fill="rgba(37,99,235,0.02)" stroke="rgba(24,24,27,0.22)" stroke-width="1" stroke-dasharray="6,4"/>
+      <rect x="300" y="98" width="248" height="12" fill="#f7f8fa"/>
+      <text x="300" y="108" fill="#5b6472" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.12em">THE FORMULA · NEXT.JS · NEON (VERCEL)</text>
+
+      <!-- ===== Arrows first (behind boxes) ===== -->
+      <!-- 1. crawler -> queue : POST -->
+      <line x1="216" y1="232" x2="332" y2="200" stroke="#2563eb" stroke-width="1.3" marker-end="url(#arrow-blue)"/>
+      <!-- 2. queue -> AI : GET pending (pull) -->
+      <line x1="528" y1="196" x2="868" y2="232" stroke="#2563eb" stroke-width="1.3" marker-end="url(#arrow-blue)"/>
+      <!-- 3. queue -> AI : webhook (push, dashed) -->
+      <line x1="528" y1="176" x2="868" y2="212" stroke="#5b6472" stroke-width="1.1" stroke-dasharray="5,4" marker-end="url(#arrow)"/>
+      <!-- 4. AI -> post : PATCH publish (primary, accent) -->
+      <line x1="876" y1="296" x2="532" y2="348" stroke="#2563eb" stroke-width="1.6" marker-end="url(#arrow-blue)"/>
+      <!-- 5. post -> feed : READ -->
+      <line x1="528" y1="348" x2="572" y2="348" stroke="#5b6472" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+      <!-- ===== Arrow labels (masked) ===== -->
+      <rect x="232" y="200" width="80" height="12" rx="2" fill="#f7f8fa"/>
+      <text x="272" y="209" fill="#2563eb" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.04em">POST /articles</text>
+
+      <rect x="636" y="200" width="100" height="12" rx="2" fill="#f7f8fa"/>
+      <text x="686" y="209" fill="#2563eb" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.04em">GET /pending · claim</text>
+
+      <rect x="652" y="176" width="72" height="12" rx="2" fill="#f7f8fa"/>
+      <text x="688" y="185" fill="#5b6472" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.04em">webhook (push)</text>
+
+      <rect x="640" y="316" width="96" height="12" rx="2" fill="#f7f8fa"/>
+      <text x="688" y="325" fill="#2563eb" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.04em">PATCH /{id} 발행</text>
+
+      <rect x="524" y="334" width="52" height="12" rx="2" fill="#f7f8fa"/>
+      <text x="550" y="343" fill="#5b6472" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">READ</text>
+
+      <!-- ===== Node: 크롤러 (input/external) ===== -->
+      <rect x="40" y="200" width="176" height="72" rx="6" fill="#f7f8fa"/>
+      <rect x="40" y="200" width="176" height="72" rx="6" fill="rgba(100,116,139,0.10)" stroke="#94a3b8" stroke-width="1"/>
+      <rect x="48" y="208" width="52" height="12" rx="2" fill="transparent" stroke="rgba(148,163,184,0.6)" stroke-width="0.8"/>
+      <text x="74" y="217" fill="#5b6472" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">CRAWLER</text>
+      <text x="128" y="240" fill="#18181b" font-size="13" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">크롤러 (민성)</text>
+      <text x="128" y="258" fill="#5b6472" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">매일 크롤링 · 외부 AI 글</text>
+
+      <!-- ===== Node: raw_article 큐 (FOCAL — channel) ===== -->
+      <rect x="336" y="152" width="192" height="80" rx="6" fill="#f7f8fa"/>
+      <rect x="336" y="152" width="192" height="80" rx="6" fill="rgba(37,99,235,0.08)" stroke="#2563eb" stroke-width="1.2"/>
+      <rect x="344" y="160" width="44" height="12" rx="2" fill="transparent" stroke="rgba(37,99,235,0.5)" stroke-width="0.8"/>
+      <text x="366" y="169" fill="#2563eb" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">QUEUE</text>
+      <text x="432" y="194" fill="#18181b" font-size="13" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">raw_article 큐</text>
+      <text x="432" y="212" fill="#5b6472" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">pending→processing→enriched</text>
+      <text x="432" y="224" fill="#94a3b8" font-size="8" font-family="'Geist', sans-serif" text-anchor="middle">sourceUrl 멱등 dedup</text>
+
+      <!-- ===== Node: post (store) ===== -->
+      <rect x="336" y="312" width="192" height="72" rx="6" fill="#f7f8fa"/>
+      <rect x="336" y="312" width="192" height="72" rx="6" fill="rgba(24,24,27,0.05)" stroke="#71717a" stroke-width="1"/>
+      <rect x="344" y="320" width="40" height="12" rx="2" fill="transparent" stroke="rgba(113,113,122,0.5)" stroke-width="0.8"/>
+      <text x="364" y="329" fill="#71717a" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">STORE</text>
+      <text x="432" y="352" fill="#18181b" font-size="13" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">post · cardnews</text>
+      <text x="432" y="370" fill="#5b6472" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">발행됨 (enriched)</text>
+
+      <!-- ===== Node: 사이트 피드 (public/backend) ===== -->
+      <rect x="576" y="312" width="200" height="72" rx="6" fill="#f7f8fa"/>
+      <rect x="576" y="312" width="200" height="72" rx="6" fill="#ffffff" stroke="#18181b" stroke-width="1"/>
+      <rect x="584" y="320" width="48" height="12" rx="2" fill="transparent" stroke="rgba(24,24,27,0.4)" stroke-width="0.8"/>
+      <text x="608" y="329" fill="#18181b" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">PUBLIC</text>
+      <text x="676" y="352" fill="#18181b" font-size="13" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">사이트 피드</text>
+      <text x="676" y="370" fill="#5b6472" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">/article/[id] · GET /articles</text>
+
+      <!-- ===== Node: AI 서버 (FOCAL — separate worker) ===== -->
+      <rect x="872" y="200" width="176" height="96" rx="6" fill="#f7f8fa"/>
+      <rect x="872" y="200" width="176" height="96" rx="6" fill="rgba(37,99,235,0.08)" stroke="#2563eb" stroke-width="1.2"/>
+      <rect x="880" y="208" width="52" height="12" rx="2" fill="transparent" stroke="rgba(37,99,235,0.5)" stroke-width="0.8"/>
+      <text x="906" y="217" fill="#2563eb" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">WORKER</text>
+      <text x="960" y="244" fill="#18181b" font-size="13" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">AI 서버 (희)</text>
+      <text x="960" y="262" fill="#5b6472" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">별도 서버 / 채널</text>
+      <text x="960" y="280" fill="#94a3b8" font-size="8.5" font-family="'Geist', sans-serif" text-anchor="middle">카드뉴스 생성 (요약·키워드)</text>
+
+      <!-- ===== Legend strip ===== -->
+      <line x1="40" y1="436" x2="1040" y2="436" stroke="rgba(24,24,27,0.1)" stroke-width="0.8"/>
+      <text x="40" y="452" fill="#5b6472" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.18em">LEGEND</text>
+
+      <rect x="40" y="468" width="14" height="10" rx="2" fill="rgba(37,99,235,0.08)" stroke="#2563eb" stroke-width="1"/>
+      <text x="60" y="476" fill="#5b6472" font-size="8.5" font-family="'Geist', sans-serif">Focal · 채널/워커</text>
+
+      <rect x="196" y="468" width="14" height="10" rx="2" fill="#ffffff" stroke="#18181b" stroke-width="1"/>
+      <text x="216" y="476" fill="#5b6472" font-size="8.5" font-family="'Geist', sans-serif">Backend</text>
+
+      <rect x="316" y="468" width="14" height="10" rx="2" fill="rgba(24,24,27,0.05)" stroke="#71717a" stroke-width="1"/>
+      <text x="336" y="476" fill="#5b6472" font-size="8.5" font-family="'Geist', sans-serif">Store</text>
+
+      <rect x="416" y="468" width="14" height="10" rx="2" fill="rgba(100,116,139,0.10)" stroke="#94a3b8" stroke-width="1"/>
+      <text x="436" y="476" fill="#5b6472" font-size="8.5" font-family="'Geist', sans-serif">External</text>
+
+      <line x1="540" y1="474" x2="568" y2="474" stroke="#2563eb" stroke-width="1.4" marker-end="url(#arrow-blue)"/>
+      <text x="576" y="476" fill="#5b6472" font-size="8.5" font-family="'Geist', sans-serif">API 호출 (Bearer)</text>
+
+      <line x1="724" y1="474" x2="752" y2="474" stroke="#5b6472" stroke-width="1.1" stroke-dasharray="5,4" marker-end="url(#arrow)"/>
+      <text x="760" y="476" fill="#5b6472" font-size="8.5" font-family="'Geist', sans-serif">async / webhook</text>
+    </svg>
+
+    <div class="cards">
+      <div class="card">
+        <p class="eyebrow">DECOUPLING</p>
+        <h3><span class="dot" style="background:#2563eb"></span>분리 처리</h3>
+        <p>수집(ingest)과 AI 가공(enrichment)이 다른 서버에서 비동기로 돈다. 크롤러는 <code>POST /api/articles</code>로 큐에 넣고 끝 — AI 서버 응답을 기다리지 않는다.</p>
+      </div>
+      <div class="card">
+        <p class="eyebrow">CHANNEL</p>
+        <h3><span class="dot" style="background:#2563eb"></span>pull + push</h3>
+        <p>AI 서버는 <code>GET /api/articles/pending?claim=true</code>로 폴링하거나, 수집 시 발사되는 webhook을 받아 즉시 처리. 결과는 <code>PATCH /api/articles/{id}</code>로 되돌린다.</p>
+      </div>
+      <div class="card">
+        <p class="eyebrow">SAFETY</p>
+        <h3><span class="dot" style="background:#71717a"></span>멱등·격리</h3>
+        <p><code>sourceUrl</code> 중복 제거, 발행 idempotent, <code>claim</code> 시 <code>processing</code> lease로 중복 처리 방지. AI 실패는 <code>failed</code>로 기록.</p>
+      </div>
+    </div>
+
+    <footer>THE FORMULA · article ingestion pipeline · raw_article queue → external enrichment → published post</footer>
+  </div>
+</body>
+</html>
