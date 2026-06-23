@@ -97,7 +97,7 @@ export async function enrichArticle(
         `summary 는 짧은 티저, body 는 원문 분량에 맞춰 충분히 길고 자세하게.\n\n` +
         `제목: ${originalTitle}\n` +
         (sourceName ? `출처: ${sourceName}\n` : "") +
-        `\n본문:\n${rawContent.slice(0, 14000)}`,
+        `\n본문:\n${rawContent.slice(0, 30000)}`,
     });
 
     return {

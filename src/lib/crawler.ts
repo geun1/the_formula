@@ -7,8 +7,15 @@
 // - 멱등은 ingestArticles(sourceUrl unique)가 담당하므로 여기선 dedup만 가볍게.
 // =============================================================================
 import Parser from "rss-parser";
+import { Readability } from "@mozilla/readability";
+import { parseHTML } from "linkedom";
 import { SOURCES, type Source } from "@/lib/sources";
 import type { ArticleInput } from "@/lib/ingest";
+
+// RSS 본문이 이 길이 미만이면 발췌로 보고 원문 URL 을 따라가 전문 추출.
+const FULLTEXT_THRESHOLD = 1500;
+// 가공에 넘길 본문 최대 길이(Gemini 3.5 Flash 는 대용량 컨텍스트 — 넉넉히).
+const MAX_RAW = 40000;
 
 const UA = "Mozilla/5.0 (compatible; TheFormulaBot/1.0; +https://the-formula-silk.vercel.app)";
 
@@ -92,6 +99,8 @@ export interface CrawlOptions {
   totalCap?: number;
   /** AI/AX 관련성 필터 적용(기본 true) */
   filterRelevance?: boolean;
+  /** 발췌 RSS 의 경우 원문 URL 전문 추출(기본 true) */
+  fullText?: boolean;
   /** 특정 소스만(이름) — 미지정시 전체 */
   only?: string[];
 }
@@ -99,6 +108,8 @@ export interface CrawlOptions {
 export interface CrawlResult {
   inputs: ArticleInput[];
   perSource: { name: string; fetched: number; kept: number; error?: string }[];
+  /** 전문 추출에 성공한 항목 수 */
+  fullFetched: number;
 }
 
 async function fetchFeed(source: Source): Promise<FeedItem[]> {
@@ -120,13 +131,77 @@ async function fetchFeed(source: Source): Promise<FeedItem[]> {
   }
 }
 
-/** 모든 소스 크롤 → ArticleInput[] (큐 입력). */
+/**
+ * 원문 URL 을 따라가 본문 전체를 추출(Readability + linkedom).
+ * 발췌만 주는 RSS(긱뉴스/뉴스사이트 등) 대응 — 실패/비HTML/너무 짧으면 null.
+ */
+export async function fetchArticleText(
+  url: string,
+  timeoutMs = 12000,
+): Promise<string | null> {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, {
+      headers: { "User-Agent": UA, Accept: "text/html,application/xhtml+xml,*/*" },
+      signal: ctrl.signal,
+      cache: "no-store",
+      redirect: "follow",
+    });
+    if (!res.ok) return null;
+    if (!(res.headers.get("content-type") || "").includes("html")) return null;
+    const html = await res.text();
+    const { document } = parseHTML(html);
+    const article = new Readability(document as unknown as Document, {
+      charThreshold: 200,
+    }).parse();
+    const text = article?.textContent
+      ? article.textContent.replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim()
+      : "";
+    return text.length > 200 ? text : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+/** 동시성 제한 병렬 매핑. */
+async function mapLimit<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T, i: number) => Promise<R>,
+): Promise<R[]> {
+  const out = new Array<R>(items.length);
+  let idx = 0;
+  const worker = async () => {
+    while (idx < items.length) {
+      const i = idx++;
+      out[i] = await fn(items[i], i);
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, worker),
+  );
+  return out;
+}
+
+type Candidate = {
+  s: Source;
+  link: string;
+  title: string;
+  rssBody: string;
+  dateStr?: string;
+};
+
+/** 모든 소스 크롤 → ArticleInput[] (큐 입력). 발췌 RSS 는 원문 전문 추출로 보강. */
 export async function crawlSources(opts: CrawlOptions = {}): Promise<CrawlResult> {
   const {
     maxPerSource = 8,
     lookbackDays = 4,
     totalCap = 60,
     filterRelevance = true,
+    fullText = true,
     only,
   } = opts;
 
@@ -136,10 +211,10 @@ export async function crawlSources(opts: CrawlOptions = {}): Promise<CrawlResult
     : SOURCES;
 
   const perSource: CrawlResult["perSource"] = [];
-  const inputs: ArticleInput[] = [];
   const seenUrls = new Set<string>();
+  const candidates: Candidate[] = [];
 
-  // 소스 병렬 fetch(개별 실패 격리)
+  // 1) 소스 병렬 RSS fetch(개별 실패 격리) → 후보 수집(관련성 필터까지)
   const settled = await Promise.allSettled(
     sources.map(async (s) => ({ s, items: await fetchFeed(s) })),
   );
@@ -154,13 +229,12 @@ export async function crawlSources(opts: CrawlOptions = {}): Promise<CrawlResult
     const items = r.value.items;
     let kept = 0;
     for (const it of items) {
-      if (kept >= maxPerSource || inputs.length >= totalCap) break;
+      if (kept >= maxPerSource || candidates.length >= totalCap) break;
       const link = it.link && cleanUrl(it.link);
       const title = (it.title ?? "").trim();
       if (!link || !title) continue;
       if (seenUrls.has(link)) continue;
 
-      // 룩백 필터(날짜 없으면 통과 — 일부 피드는 날짜 누락)
       const dateStr = it.isoDate ?? it.pubDate;
       if (dateStr) {
         const ts = new Date(dateStr).getTime();
@@ -171,24 +245,38 @@ export async function crawlSources(opts: CrawlOptions = {}): Promise<CrawlResult
         it["content:encoded"] || it.content || it.summary || it.contentSnippet || "";
       let body = htmlToText(rawHtml);
       if (body.length < 40) body = it.contentSnippet?.trim() || title;
-      // 원문 충실 재구성을 위해 본문을 넉넉히 보존(전문 RSS 대비).
-      const rawContent = `${title}\n\n${body}`.slice(0, 16000);
 
       if (filterRelevance && !isRelevant(`${title} ${body}`)) continue;
 
       seenUrls.add(link);
-      inputs.push({
-        sourceName: s.name,
-        sourceUrl: link,
-        originalTitle: title.slice(0, 300),
-        rawContent,
-        category: s.category,
-        collectedAt: dateStr ?? undefined,
-      });
+      candidates.push({ s, link, title, rssBody: body, dateStr });
       kept++;
     }
     perSource.push({ name: s.name, fetched: items.length, kept });
   }
 
-  return { inputs, perSource };
+  // 2) 전문 보강 — RSS 본문이 짧으면(발췌) 원문 URL 따라가 전체 추출(동시성 5)
+  let fullFetched = 0;
+  const bodies = await mapLimit(candidates, 5, async (c) => {
+    if (fullText && c.rssBody.length < FULLTEXT_THRESHOLD) {
+      const full = await fetchArticleText(c.link);
+      if (full && full.length > c.rssBody.length) {
+        fullFetched++;
+        return full;
+      }
+    }
+    return c.rssBody;
+  });
+
+  // 3) ArticleInput 으로 마감
+  const inputs: ArticleInput[] = candidates.map((c, i) => ({
+    sourceName: c.s.name,
+    sourceUrl: c.link,
+    originalTitle: c.title.slice(0, 300),
+    rawContent: `${c.title}\n\n${bodies[i]}`.slice(0, MAX_RAW),
+    category: c.s.category,
+    collectedAt: c.dateStr ?? undefined,
+  }));
+
+  return { inputs, perSource, fullFetched };
 }

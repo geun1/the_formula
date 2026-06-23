@@ -60,6 +60,7 @@ export async function GET(req: NextRequest) {
       const ingest = await ingestArticles(crawl.inputs);
       result.collect = {
         crawled: crawl.inputs.length,
+        fullFetched: crawl.fullFetched,
         queued: ingest.queued,
         skipped: ingest.skipped,
         perSource: crawl.perSource,
