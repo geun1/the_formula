@@ -278,10 +278,27 @@
   .profile-head .pn{font-size:22px;font-weight:800;letter-spacing:-.02em;}
   .profile-head .pr{font-size:14px;color:var(--t3);margin-top:3px;}
   .profile-bio{font-size:15px;color:var(--t2);margin-top:18px;line-height:1.6;max-width:560px;}
+  .profile-links{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;}
+  .profile-link{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--t2);background:var(--bg-2);border-radius:20px;padding:6px 13px;transition:background .15s,color .15s;}
+  .profile-link:hover{background:var(--blue-weak);color:var(--blue);}
   .stats{display:flex;gap:28px;margin-top:22px;}
   .stat .n{font-size:20px;font-weight:800;letter-spacing:-.02em;}
   .stat .l{font-size:12.5px;color:var(--t3);margin-top:2px;font-weight:600;}
   .profile-actions{display:flex;gap:10px;margin-top:24px;}
+  /* 활동 이력 타임라인 */
+  .timeline{display:flex;flex-direction:column;gap:2px;}
+  .tl-item{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:12px;transition:background .15s;}
+  .tl-item:hover{background:var(--bg-2);}
+  .tl-emoji{font-size:16px;line-height:1;flex-shrink:0;width:22px;text-align:center;}
+  .tl-text{flex:1;min-width:0;font-size:14.5px;color:var(--t1);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  a.tl-text:hover{color:var(--blue);}
+  .tl-at{flex-shrink:0;font-size:12.5px;color:var(--t3);font-weight:600;}
+  /* 지원/참여 모임 — 내 공식과 동일하게 공용 .grid 사용. 셀은 지원상태 pill 부착용 */
+  .applied-cell{display:flex;flex-direction:column;gap:8px;}
+  .applied-status{align-self:flex-start;font-size:12px;font-weight:700;border-radius:20px;padding:3px 11px;}
+  .applied-pending{background:var(--bg-2);color:var(--t2);}
+  .applied-accepted{background:var(--blue-weak);color:var(--blue);}
+  .applied-rejected{background:#FEECEC;color:#F03E3E;}
 
   /* ===== Directory layout ===== */
   .dir-wrap{display:grid;grid-template-columns:192px 1fr;gap:36px;align-items:start;}

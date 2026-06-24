@@ -957,6 +957,9 @@ export async function getProfile(
     company: u.company,
     bio: u.bio,
     interests: (u.interests as string[]) ?? [],
+    github: u.github,
+    homepage: u.homepage,
+    blog: u.blog,
     jobRole: u.jobRole,
     onboarded: u.onboarded,
     isAgent: u.isAgent,
@@ -982,6 +985,180 @@ export async function getProfile(
     isFollowing,
     isMe: viewer === targetId,
   };
+}
+
+// ---- 활동 이력 타임라인 (공개 이벤트만) ----
+/** 프로필 활동 이력 한 건. 내 행동 + 받은 반응을 시간순 통합. */
+export interface ActivityEvent {
+  kind: string;
+  emoji: string;
+  text: string;
+  at: string; // ISO
+  href?: string; // 클릭 시 이동(공식/멤버/모임)
+}
+
+/**
+ * 유저의 활동 이력을 시간순 통합 반환(최신순 N). 파생 방식(전용 저장 없음).
+ * - 공개: 공식 작성 · 댓글 · 모임 지원 · 팔로우 · 받은 좋아요 · 저장받음
+ * - 사적(includePrivate=true, 본인만): 누른 좋아요 · 저장한 공식 · 저장한 멤버
+ */
+export async function getActivityTimeline(
+  userId: string,
+  opts: { limit?: number; includePrivate?: boolean } = {},
+): Promise<ActivityEvent[]> {
+  const { limit = 20, includePrivate = false } = opts;
+  if (!userId) return [];
+
+  const events: ActivityEvent[] = [];
+  const cut = (s: string, n = 40) => (s.length > n ? s.slice(0, n) + "…" : s);
+
+  // 1) 작성한 공식 [공개]
+  const authored = await db
+    .select({ id: posts.id, title: posts.title, createdAt: posts.createdAt })
+    .from(posts)
+    .where(and(eq(posts.authorId, userId), eq(posts.postType, "formula")))
+    .orderBy(desc(posts.createdAt))
+    .limit(limit);
+  for (const p of authored)
+    events.push({ kind: "write", emoji: "📝", text: `공식 '${cut(p.title)}' 작성`, at: p.createdAt.toISOString(), href: `/formula/${p.id}` });
+
+  // 2) 내가 단 댓글 [공개]
+  const myComments = await db
+    .select({ title: posts.title, postId: posts.id, createdAt: interactions.createdAt })
+    .from(interactions)
+    .innerJoin(posts, eq(posts.id, interactions.postId))
+    .where(and(eq(interactions.userId, userId), eq(interactions.type, "comment")))
+    .orderBy(desc(interactions.createdAt))
+    .limit(limit);
+  for (const c of myComments)
+    events.push({ kind: "comment", emoji: "💬", text: `'${cut(c.title)}'에 댓글을 남겼어요`, at: c.createdAt.toISOString(), href: `/formula/${c.postId}` });
+
+  // 3) 모임 지원 [공개]
+  const myApps = await db
+    .select({ title: activities.title, actId: activities.id, createdAt: applications.createdAt })
+    .from(applications)
+    .innerJoin(activities, eq(activities.id, applications.activityId))
+    .where(eq(applications.userId, userId))
+    .orderBy(desc(applications.createdAt))
+    .limit(limit);
+  for (const a of myApps)
+    events.push({ kind: "apply", emoji: "🚀", text: `'${cut(a.title)}' 모임에 지원했어요`, at: a.createdAt.toISOString(), href: `/activities/${a.actId}` });
+
+  // 4) 팔로우 [공개]
+  const myFollows = await db
+    .select({ id: users.id, name: users.name, createdAt: follows.createdAt })
+    .from(follows)
+    .innerJoin(users, eq(users.id, follows.followingId))
+    .where(eq(follows.followerId, userId))
+    .orderBy(desc(follows.createdAt))
+    .limit(limit);
+  for (const f of myFollows)
+    events.push({ kind: "follow", emoji: "➕", text: `${f.name ?? "익명"}님을 팔로우했어요`, at: f.createdAt.toISOString(), href: `/profile/${f.id}` });
+
+  // 5) 내 글이 받은 좋아요 [공개·신뢰]
+  const likesRecv = await db
+    .select({ title: posts.title, postId: posts.id, createdAt: interactions.createdAt })
+    .from(interactions)
+    .innerJoin(posts, eq(posts.id, interactions.postId))
+    .where(and(eq(posts.authorId, userId), eq(interactions.type, "like")))
+    .orderBy(desc(interactions.createdAt))
+    .limit(limit);
+  for (const l of likesRecv)
+    events.push({ kind: "like-recv", emoji: "❤️", text: `'${cut(l.title)}'이 좋아요를 받았어요`, at: l.createdAt.toISOString(), href: `/formula/${l.postId}` });
+
+  // 6) 내 글이 저장받음 [공개·신뢰]
+  const savesRecv = await db
+    .select({ title: posts.title, postId: posts.id, createdAt: bookmarks.createdAt })
+    .from(bookmarks)
+    .innerJoin(posts, eq(posts.id, bookmarks.postId))
+    .where(eq(posts.authorId, userId))
+    .orderBy(desc(bookmarks.createdAt))
+    .limit(limit);
+  for (const s of savesRecv)
+    events.push({ kind: "save-recv", emoji: "🔖", text: `'${cut(s.title)}'이 저장됐어요`, at: s.createdAt.toISOString(), href: `/formula/${s.postId}` });
+
+  // 7~9) 사적 행동 — 본인 마이페이지에서만
+  if (includePrivate) {
+    // 7) 내가 누른 좋아요
+    const myLikes = await db
+      .select({ title: posts.title, postId: posts.id, createdAt: interactions.createdAt })
+      .from(interactions)
+      .innerJoin(posts, eq(posts.id, interactions.postId))
+      .where(and(eq(interactions.userId, userId), eq(interactions.type, "like")))
+      .orderBy(desc(interactions.createdAt))
+      .limit(limit);
+    for (const l of myLikes)
+      events.push({ kind: "like", emoji: "👍", text: `'${cut(l.title)}'에 좋아요를 눌렀어요`, at: l.createdAt.toISOString(), href: `/formula/${l.postId}` });
+
+    // 8) 내가 저장한 공식
+    const myBookmarks = await db
+      .select({ title: posts.title, postId: posts.id, createdAt: bookmarks.createdAt })
+      .from(bookmarks)
+      .innerJoin(posts, eq(posts.id, bookmarks.postId))
+      .where(eq(bookmarks.userId, userId))
+      .orderBy(desc(bookmarks.createdAt))
+      .limit(limit);
+    for (const b of myBookmarks)
+      events.push({ kind: "bookmark", emoji: "🔖", text: `'${cut(b.title)}'을 저장했어요`, at: b.createdAt.toISOString(), href: `/formula/${b.postId}` });
+
+    // 9) 내가 저장한 멤버(하트)
+    const myMemberSaves = await db
+      .select({ id: users.id, name: users.name, createdAt: memberBookmarks.createdAt })
+      .from(memberBookmarks)
+      .innerJoin(users, eq(users.id, memberBookmarks.memberId))
+      .where(eq(memberBookmarks.userId, userId))
+      .orderBy(desc(memberBookmarks.createdAt))
+      .limit(limit);
+    for (const m of myMemberSaves)
+      events.push({ kind: "member-save", emoji: "💜", text: `${m.name ?? "익명"}님을 저장했어요`, at: m.createdAt.toISOString(), href: `/profile/${m.id}` });
+  }
+
+  return events
+    .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
+    .slice(0, limit);
+}
+
+// ---- 지원한 모임/스터디 (마이페이지) ----
+/** 내가 지원한 모임 한 건 — 모임 + 내 지원 상태. */
+export interface AppliedActivity {
+  activity: Activity;
+  status: Application["status"];
+  appliedAt: string;
+}
+
+/** userId 가 지원한 모임 목록(지원 최근순) + 각 지원 상태. */
+export async function getAppliedActivities(
+  userId: string,
+): Promise<AppliedActivity[]> {
+  if (!userId) return [];
+  const rows = await db
+    .select({
+      id: activities.id,
+      type: activities.type,
+      title: activities.title,
+      summary: activities.summary,
+      description: activities.description,
+      status: activities.status,
+      ownerId: activities.ownerId,
+      ownerName: activities.ownerName,
+      tags: activities.tags,
+      capacity: activities.capacity,
+      season: activities.season,
+      createdAt: activities.createdAt,
+      applicantCount: applicantCountSql,
+      appStatus: applications.status,
+      appliedAt: applications.createdAt,
+    })
+    .from(applications)
+    .innerJoin(activities, eq(activities.id, applications.activityId))
+    .where(eq(applications.userId, userId))
+    .orderBy(desc(applications.createdAt));
+
+  return rows.map((r) => ({
+    activity: rowToActivity(r as Parameters<typeof rowToActivity>[0]),
+    status: r.appStatus,
+    appliedAt: r.appliedAt.toISOString(),
+  }));
 }
 
 // =============================================================================

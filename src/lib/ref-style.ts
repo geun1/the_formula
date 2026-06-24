@@ -76,3 +76,19 @@ export function fmtCount(n: number | null | undefined): string {
   const s = v < 10_000_000 ? m.toFixed(1) : Math.round(m).toString();
   return `${s.replace(/\.0$/, "")}m`;
 }
+
+// ISO 시각 → '방금 전' / 'N분 전' / 'N시간 전' / 'N일 전' / 'YYYY.MM.DD'.
+export function timeAgo(iso: string): string {
+  const t = new Date(iso).getTime();
+  if (!isFinite(t)) return "";
+  const sec = Math.floor((Date.now() - t) / 1000);
+  if (sec < 60) return "방금 전";
+  const m = Math.floor(sec / 60);
+  if (m < 60) return `${m}분 전`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}시간 전`;
+  const d = Math.floor(h / 24);
+  if (d < 30) return `${d}일 전`;
+  const dt = new Date(t);
+  return `${dt.getFullYear()}.${String(dt.getMonth() + 1).padStart(2, "0")}.${String(dt.getDate()).padStart(2, "0")}`;
+}
