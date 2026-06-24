@@ -107,16 +107,13 @@ export default async function ProfilePage({
   const { tier } = computeTrust(user.activityStats);
   const TIER_RANK: Record<string, number> = { sprout: 0, contributor: 1, activist: 2, builder: 3, master: 4 };
   const tierRank = TIER_RANK[tier] ?? 0;
-  // ponytail: isMe일 때 목업 오버라이드 — 배지 전체 미리보기용. 실 서비스 전 제거.
-  const s = isMe
-    ? { ...user.activityStats, formulaCount: 15, verifiedFormulaCount: 6, hasCompany: true, onboarded: true }
-    : user.activityStats;
-  const bCompleted = isMe ? 5 : completedActivities.length;
-  const bSaves    = isMe ? 60 : savesReceived;
-  const bFollowers = isMe ? 60 : followerCount;
-  const bTierRank  = isMe ? 4 : tierRank;
-  const bGithub    = isMe ? "mock" : user.github;
-  const bBio       = isMe ? "mock" : user.bio;
+  const s = user.activityStats;
+  const bCompleted = completedActivities.length;
+  const bSaves     = savesReceived;
+  const bFollowers = followerCount;
+  const bTierRank  = tierRank;
+  const bGithub    = user.github;
+  const bBio       = user.bio;
   type Badge = { emoji: string; label: string };
   // 같은 종류 중 달성한 가장 높은 단계만 반환
   const pick = (tiers: (Badge | false)[]) =>
