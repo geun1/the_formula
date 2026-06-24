@@ -132,6 +132,10 @@ export interface User {
   company: string | null;
   bio: string;
   interests: string[];
+  /** 외부 링크 (선택, null 허용) */
+  github: string | null;
+  homepage: string | null;
+  blog: string | null;
   /** 직무 (온보딩에서 선택, JOB_ROLES 권장). null 허용 */
   jobRole: string | null;
   /** 온보딩 완료 플래그 (default false) */

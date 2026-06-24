@@ -43,6 +43,13 @@
       "when": 1782205487686,
       "tag": "0005_next_wolverine",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1782289652414,
+      "tag": "0006_cuddly_silvermane",
+      "breakpoints": true
     }
   ]
 }
