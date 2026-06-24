@@ -107,26 +107,35 @@ export default async function ProfilePage({
   const { tier } = computeTrust(user.activityStats);
   const TIER_RANK: Record<string, number> = { sprout: 0, contributor: 1, activist: 2, builder: 3, master: 4 };
   const tierRank = TIER_RANK[tier] ?? 0;
-  const s = user.activityStats;
+  // ponytail: isMe일 때 목업 오버라이드 — 배지 전체 미리보기용. 실 서비스 전 제거.
+  const s = isMe
+    ? { ...user.activityStats, formulaCount: 15, verifiedFormulaCount: 6, hasCompany: true, onboarded: true }
+    : user.activityStats;
+  const bCompleted = isMe ? 5 : completedActivities.length;
+  const bSaves    = isMe ? 60 : savesReceived;
+  const bFollowers = isMe ? 60 : followerCount;
+  const bTierRank  = isMe ? 4 : tierRank;
+  const bGithub    = isMe ? "mock" : user.github;
+  const bBio       = isMe ? "mock" : user.bio;
   const badges = [
-    user.github                          && { emoji: "🔗", label: "GitHub 연결" },
+    bGithub                              && { emoji: "🔗", label: "GitHub 연결" },
     s.hasCompany                         && { emoji: "🏢", label: "소속 인증" },
-    s.onboarded && user.bio              && { emoji: "📝", label: "프로필 완성" },
+    s.onboarded && bBio                  && { emoji: "📝", label: "프로필 완성" },
     s.formulaCount >= 1                  && { emoji: "🌱", label: "첫 공식" },
     s.formulaCount >= 5                  && { emoji: "✍️", label: "공식 5개" },
     s.formulaCount >= 10                 && { emoji: "✍️", label: "공식 10개" },
     (s.verifiedFormulaCount ?? 0) >= 1   && { emoji: "✅", label: "첫 검증 공식" },
     (s.verifiedFormulaCount ?? 0) >= 5   && { emoji: "✅", label: "검증 공식 5개" },
-    completedActivities.length >= 1      && { emoji: "🏁", label: "첫 모임 완주" },
-    completedActivities.length >= 3      && { emoji: "🏆", label: "모임 3회 완주" },
-    savesReceived >= 10                  && { emoji: "💾", label: "저장 10회" },
-    savesReceived >= 50                  && { emoji: "💾", label: "저장 50회" },
-    followerCount >= 10                  && { emoji: "👥", label: "팔로워 10명" },
-    followerCount >= 50                  && { emoji: "👥", label: "팔로워 50명" },
-    tierRank >= 1                        && { emoji: "🌿", label: "기여자" },
-    tierRank >= 2                        && { emoji: "💪", label: "활동가" },
-    tierRank >= 3                        && { emoji: "🔨", label: "빌더" },
-    tierRank >= 4                        && { emoji: "👑", label: "AX 마스터" },
+    bCompleted >= 1                      && { emoji: "🏁", label: "첫 모임 완주" },
+    bCompleted >= 3                      && { emoji: "🏆", label: "모임 3회 완주" },
+    bSaves >= 10                         && { emoji: "💾", label: "저장 10회" },
+    bSaves >= 50                         && { emoji: "💾", label: "저장 50회" },
+    bFollowers >= 10                     && { emoji: "👥", label: "팔로워 10명" },
+    bFollowers >= 50                     && { emoji: "👥", label: "팔로워 50명" },
+    bTierRank >= 1                       && { emoji: "🌿", label: "기여자" },
+    bTierRank >= 2                       && { emoji: "💪", label: "활동가" },
+    bTierRank >= 3                       && { emoji: "🔨", label: "빌더" },
+    bTierRank >= 4                       && { emoji: "👑", label: "AX 마스터" },
   ].filter(Boolean) as { emoji: string; label: string }[];
 
   // 이름 끝 글자 기준 호칭(서연님의 공식) — 마지막 2글자 또는 전체.
