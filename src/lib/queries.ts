@@ -574,16 +574,15 @@ async function tierMapFor(userIds: string[]): Promise<Map<string, Tier>> {
 
 /** 유저별 ActivityStats(SQL 집계) 맵. visitCountBase/projectCount 는 저장값. */
 async function statsFor(userIds: string[]) {
-  const map = new Map<
-    string,
-    {
-      visitCount: number;
-      commentCount: number;
-      formulaCount: number;
-      likesReceived: number;
-      projectCount: number;
-    }
-  >();
+  type StatsRow = {
+    visitCount: number; commentCount: number; formulaCount: number;
+    likesReceived: number; projectCount: number;
+    verifiedFormulaCount: number; completedActivityCount: number;
+    savesReceived: number; memberSaves: number; followerCount: number;
+    commentsReceived: number; onboarded: boolean; hasCompany: boolean;
+    externalLinkCount: number;
+  };
+  const map = new Map<string, StatsRow>();
   if (!userIds.length) return map;
 
   const urows = await db
@@ -591,79 +590,122 @@ async function statsFor(userIds: string[]) {
       id: users.id,
       visitCountBase: users.visitCountBase,
       projectCount: users.projectCount,
+      onboarded: users.onboarded,
+      company: users.company,
+      github: users.github,
+      blog: users.blog,
+      homepage: users.homepage,
     })
     .from(users)
     .where(inArray(users.id, userIds));
 
   // 본인이 만든 view 이벤트 수
   const viewRows = await db
-    .select({
-      userId: interactions.userId,
-      c: sql<number>`count(*)::int`,
-    })
+    .select({ userId: interactions.userId, c: sql<number>`count(*)::int` })
     .from(interactions)
-    .where(
-      and(
-        inArray(interactions.userId, userIds),
-        eq(interactions.type, "view"),
-      ),
-    )
+    .where(and(inArray(interactions.userId, userIds), eq(interactions.type, "view")))
     .groupBy(interactions.userId);
   const viewBy = new Map(viewRows.map((r) => [r.userId, Number(r.c)]));
 
   // 본인이 쓴 댓글 수
   const cmtRows = await db
-    .select({
-      userId: interactions.userId,
-      c: sql<number>`count(*)::int`,
-    })
+    .select({ userId: interactions.userId, c: sql<number>`count(*)::int` })
     .from(interactions)
-    .where(
-      and(
-        inArray(interactions.userId, userIds),
-        eq(interactions.type, "comment"),
-      ),
-    )
+    .where(and(inArray(interactions.userId, userIds), eq(interactions.type, "comment")))
     .groupBy(interactions.userId);
   const cmtBy = new Map(cmtRows.map((r) => [r.userId, Number(r.c)]));
 
   // 본인이 쓴 글(formula) 수
   const fmRows = await db
-    .select({
-      authorId: posts.authorId,
-      c: sql<number>`count(*)::int`,
-    })
+    .select({ authorId: posts.authorId, c: sql<number>`count(*)::int` })
     .from(posts)
-    .where(
-      and(inArray(posts.authorId, userIds), eq(posts.postType, "formula")),
-    )
+    .where(and(inArray(posts.authorId, userIds), eq(posts.postType, "formula")))
     .groupBy(posts.authorId);
   const fmBy = new Map(fmRows.map((r) => [r.authorId, Number(r.c)]));
 
-  // 본인 글이 받은 좋아요 수(작성자 기준 조인 집계)
+  // 검증된 공식 수
+  const verifiedRows = await db
+    .select({ authorId: posts.authorId, c: sql<number>`count(*)::int` })
+    .from(posts)
+    .where(and(inArray(posts.authorId, userIds), eq(posts.postType, "formula"), eq(posts.verified, true)))
+    .groupBy(posts.authorId);
+  const verifiedBy = new Map(verifiedRows.map((r) => [r.authorId, Number(r.c)]));
+
+  // 본인 글이 받은 좋아요 수
   const likeRows = await db
-    .select({
-      authorId: posts.authorId,
-      c: sql<number>`count(*)::int`,
-    })
+    .select({ authorId: posts.authorId, c: sql<number>`count(*)::int` })
     .from(interactions)
     .innerJoin(posts, eq(posts.id, interactions.postId))
-    .where(
-      and(
-        inArray(posts.authorId, userIds),
-        eq(interactions.type, "like"),
-      ),
-    )
+    .where(and(inArray(posts.authorId, userIds), eq(interactions.type, "like")))
     .groupBy(posts.authorId);
   const likeBy = new Map(likeRows.map((r) => [r.authorId, Number(r.c)]));
 
+  // 본인 글이 받은 댓글 수
+  const crcRows = await db
+    .select({ authorId: posts.authorId, c: sql<number>`count(*)::int` })
+    .from(interactions)
+    .innerJoin(posts, eq(posts.id, interactions.postId))
+    .where(and(inArray(posts.authorId, userIds), eq(interactions.type, "comment")))
+    .groupBy(posts.authorId);
+  const crcBy = new Map(crcRows.map((r) => [r.authorId, Number(r.c)]));
+
+  // 북마크 받은 수 (공식 저장받음)
+  const saveRows = await db
+    .select({ authorId: posts.authorId, c: sql<number>`count(*)::int` })
+    .from(bookmarks)
+    .innerJoin(posts, eq(posts.id, bookmarks.postId))
+    .where(inArray(posts.authorId, userIds))
+    .groupBy(posts.authorId);
+  const saveBy = new Map(saveRows.map((r) => [r.authorId, Number(r.c)]));
+
+  // 멤버 저장 수 (하트)
+  const mSaveRows = await db
+    .select({ memberId: memberBookmarks.memberId, c: sql<number>`count(*)::int` })
+    .from(memberBookmarks)
+    .where(inArray(memberBookmarks.memberId, userIds))
+    .groupBy(memberBookmarks.memberId);
+  const mSaveBy = new Map(mSaveRows.map((r) => [r.memberId, Number(r.c)]));
+
+  // 팔로워 수
+  const followRows = await db
+    .select({ followingId: follows.followingId, c: sql<number>`count(*)::int` })
+    .from(follows)
+    .where(inArray(follows.followingId, userIds))
+    .groupBy(follows.followingId);
+  const followBy = new Map(followRows.map((r) => [r.followingId, Number(r.c)]));
+
+  // 완주한 모임 수 (수락된 지원 + activity.status='done')
+  const completedRows = await db
+    .select({ userId: applications.userId, c: sql<number>`count(*)::int` })
+    .from(applications)
+    .innerJoin(activities, eq(activities.id, applications.activityId))
+    .where(
+      and(
+        inArray(applications.userId, userIds),
+        eq(applications.status, "accepted"),
+        eq(activities.status, "done"),
+      ),
+    )
+    .groupBy(applications.userId);
+  const completedBy = new Map(completedRows.map((r) => [r.userId, Number(r.c)]));
+
   for (const u of urows) {
+    const extLinks = [u.github, u.blog, u.homepage].filter(Boolean).length;
     map.set(u.id, {
       visitCount: (u.visitCountBase ?? 0) + (viewBy.get(u.id) ?? 0),
       commentCount: cmtBy.get(u.id) ?? 0,
       formulaCount: fmBy.get(u.id) ?? 0,
       likesReceived: likeBy.get(u.id) ?? 0,
       projectCount: u.projectCount ?? 0,
+      verifiedFormulaCount: verifiedBy.get(u.id) ?? 0,
+      completedActivityCount: completedBy.get(u.id) ?? 0,
+      savesReceived: saveBy.get(u.id) ?? 0,
+      memberSaves: mSaveBy.get(u.id) ?? 0,
+      followerCount: followBy.get(u.id) ?? 0,
+      commentsReceived: crcBy.get(u.id) ?? 0,
+      onboarded: u.onboarded ?? false,
+      hasCompany: !!u.company,
+      externalLinkCount: extLinks,
     });
   }
   return map;
@@ -686,15 +728,10 @@ export async function getProfileLite(
     .limit(1);
   if (!u) return null;
   const stats = await statsFor([userId]);
-  const t = computeTrust(
-    stats.get(userId) ?? {
-      visitCount: 0,
-      commentCount: 0,
-      formulaCount: 0,
-      likesReceived: 0,
-      projectCount: 0,
-    },
-  );
+  const t = computeTrust(stats.get(userId) ?? {
+    visitCount: 0, commentCount: 0, formulaCount: 0,
+    likesReceived: 0, projectCount: 0,
+  });
   return {
     id: u.id,
     name: u.name ?? "익명",
@@ -821,11 +858,8 @@ export async function getMemberDirectory(
 
   return urows.map((u) => {
     const s = stats.get(u.id) ?? {
-      visitCount: 0,
-      commentCount: 0,
-      formulaCount: 0,
-      likesReceived: 0,
-      projectCount: 0,
+      visitCount: 0, commentCount: 0, formulaCount: 0,
+      likesReceived: 0, projectCount: 0,
     };
     const t = computeTrust(s);
     return {
@@ -912,11 +946,8 @@ export async function getProfile(
 
   const stats = await statsFor([targetId]);
   const s = stats.get(targetId) ?? {
-    visitCount: 0,
-    commentCount: 0,
-    formulaCount: 0,
-    likesReceived: 0,
-    projectCount: 0,
+    visitCount: 0, commentCount: 0, formulaCount: 0,
+    likesReceived: 0, projectCount: 0,
   };
   const t = computeTrust(s);
 
