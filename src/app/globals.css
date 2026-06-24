@@ -498,3 +498,176 @@ body {
   z-index: 1;
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
 }
+
+/* =============================================================================
+   공식 작성 — 양식 탭(가이드/자유) + Tiptap 자유 에디터 + 자유 본문 렌더
+   ========================================================================== */
+.fmt-tabs {
+  display: flex;
+  gap: 8px;
+  margin: 18px 0 8px;
+}
+.fmt-tab {
+  flex: 1;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--t2);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.fmt-tab:hover {
+  background: var(--bg-2);
+}
+.fmt-tab.on {
+  border-color: var(--blue);
+  background: var(--blue-weak);
+  color: var(--blue);
+}
+.fmt-hint {
+  font-size: 13px;
+  color: var(--t3);
+  margin: 0 0 4px;
+}
+
+/* Tiptap 에디터 */
+.re-wrap {
+  border: 1px solid var(--border-2);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--card);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.re-wrap:focus-within {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px var(--blue-weak);
+}
+.re-loading {
+  padding: 20px;
+  color: var(--t3);
+  font-size: 14px;
+}
+.re-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-2);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.re-tb {
+  min-width: 32px;
+  height: 32px;
+  padding: 0 8px;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--t2);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.re-tb:hover {
+  background: var(--card);
+}
+.re-tb.on {
+  background: var(--blue);
+  color: #fff;
+}
+.re-sep {
+  width: 1px;
+  height: 18px;
+  background: var(--border-2);
+  margin: 0 4px;
+}
+.tiptap-content {
+  min-height: 280px;
+  max-height: 640px;
+  overflow-y: auto;
+  padding: 16px 18px;
+  font-size: 16px;
+  line-height: 1.8;
+  color: var(--t1);
+  outline: none;
+}
+.tiptap-content p {
+  margin: 0 0 12px;
+}
+.tiptap-content h2 {
+  font-size: 20px;
+  font-weight: 800;
+  margin: 22px 0 10px;
+}
+.tiptap-content h3 {
+  font-size: 17px;
+  font-weight: 700;
+  margin: 18px 0 8px;
+}
+.tiptap-content ul,
+.tiptap-content ol {
+  padding-left: 22px;
+  margin: 10px 0;
+}
+.tiptap-content li {
+  margin-bottom: 5px;
+}
+.tiptap-content blockquote {
+  border-left: 3px solid var(--blue);
+  padding-left: 14px;
+  color: var(--t2);
+  margin: 14px 0;
+}
+.tiptap-content pre {
+  background: #0d1730;
+  color: #e6edf6;
+  border-radius: 10px;
+  padding: 14px 16px;
+  overflow-x: auto;
+  font-size: 13.5px;
+  margin: 14px 0;
+}
+.tiptap-content code {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+}
+.tiptap-content a {
+  color: var(--blue);
+  text-decoration: underline;
+}
+
+/* 자유 본문 렌더(.md 재사용 + h1/h2) */
+.md h1,
+.md h2 {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin: 26px 0 10px;
+  color: var(--t1);
+}
+.free-body > :first-child {
+  margin-top: 0;
+}
+.free-body blockquote {
+  border-left: 3px solid var(--blue);
+  padding: 4px 0 4px 16px;
+  margin: 14px 0;
+  color: var(--t2);
+}
+.free-body pre {
+  background: #0d1730;
+  color: #e6edf6;
+  border-radius: 10px;
+  padding: 14px 16px;
+  overflow-x: auto;
+  font-size: 13.5px;
+  margin: 14px 0;
+}
+.free-body a {
+  color: var(--blue);
+}

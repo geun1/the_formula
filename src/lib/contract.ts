@@ -67,6 +67,10 @@ export interface CardNews {
 }
 
 export interface FormulaBody {
+  /** 작성 양식. guide=구조화 폼(기본), free=자유 에디터(HTML). */
+  format?: "guide" | "free";
+  /** 자유 형식 본문(새니타이즈된 HTML). format==='free' 일 때 사용. */
+  content?: string;
   /** 문제 상황 */
   problem: string;
   /** 가설 */

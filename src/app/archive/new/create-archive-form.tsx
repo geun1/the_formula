@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { createArchive } from "@/app/actions";
+import { RichEditor } from "./rich-editor";
 import {
   CATEGORIES,
   DIFFICULTIES,
@@ -57,7 +58,11 @@ export function CreateArchiveForm({
   const [workType, setWorkType] = useState("");
   const [tagsRaw, setTagsRaw] = useState("");
 
-  // 공식 본문
+  // 작성 양식: guide(구조화 폼) / free(자유 에디터)
+  const [format, setFormat] = useState<"guide" | "free">("guide");
+  const [content, setContent] = useState(""); // 자유 형식 HTML
+
+  // 공식 본문(guide)
   const [problem, setProblem] = useState("");
   const [hypothesis, setHypothesis] = useState("");
   const [toolsRaw, setToolsRaw] = useState("");
@@ -91,21 +96,30 @@ export function CreateArchiveForm({
       setError("제목을 2자 이상 입력해 주세요.");
       return;
     }
-    if (!problem.trim()) {
-      setError("문제 상황을 입력해 주세요.");
-      return;
-    }
-    if (!hypothesis.trim()) {
-      setError("가설을 입력해 주세요.");
-      return;
-    }
-    if (!process.trim()) {
-      setError("적용 과정을 입력해 주세요.");
-      return;
-    }
-    if (!result.trim()) {
-      setError("결과를 입력해 주세요.");
-      return;
+    if (format === "free") {
+      // 태그 제외 순수 텍스트가 비었는지 대략 확인(서버에서 재검증·새니타이즈).
+      const text = content.replace(/<[^>]+>/g, "").replace(/&nbsp;/gi, " ").trim();
+      if (!text) {
+        setError("내용을 입력해 주세요.");
+        return;
+      }
+    } else {
+      if (!problem.trim()) {
+        setError("문제 상황을 입력해 주세요.");
+        return;
+      }
+      if (!hypothesis.trim()) {
+        setError("가설을 입력해 주세요.");
+        return;
+      }
+      if (!process.trim()) {
+        setError("적용 과정을 입력해 주세요.");
+        return;
+      }
+      if (!result.trim()) {
+        setError("결과를 입력해 주세요.");
+        return;
+      }
     }
 
     const tags = splitList(tagsRaw, 8);
@@ -121,6 +135,7 @@ export function CreateArchiveForm({
         tags,
         difficulty,
         workType: workType.trim() || null,
+        format,
         formula: {
           problem: problem.trim(),
           hypothesis: hypothesis.trim(),
@@ -129,6 +144,7 @@ export function CreateArchiveForm({
           process: process.trim(),
           result: result.trim(),
           timeSaved: timeSaved.trim(),
+          content, // 자유 형식 HTML(서버에서 새니타이즈)
         },
         relatedArticleId: relatedArticleId || null,
       });
@@ -263,8 +279,48 @@ export function CreateArchiveForm({
         <span className="step-num">2</span>
         <h2 className="step-title">공식을 적어주세요</h2>
       </div>
+
+      {/* 양식 선택 탭 */}
+      <div className="fmt-tabs" role="tablist" aria-label="작성 양식">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={format === "guide"}
+          className={`fmt-tab${format === "guide" ? " on" : ""}`}
+          onClick={() => setFormat("guide")}
+          disabled={pending}
+        >
+          📋 가이드 형식
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={format === "free"}
+          className={`fmt-tab${format === "free" ? " on" : ""}`}
+          onClick={() => setFormat("free")}
+          disabled={pending}
+        >
+          ✏️ 자유 형식
+        </button>
+      </div>
+      <p className="fmt-hint">
+        {format === "guide"
+          ? "문제 → 가설 → 도구 → 과정 → 결과 순서로 채우면 상세 페이지에 구조화돼 보여요."
+          : "에디터에 자유롭게 쓰면 상세 페이지에 쓴 그대로 보여요."}
+      </p>
       <div className="write-divider" />
 
+      {/* 자유 형식 */}
+      {format === "free" && (
+        <div className="field" style={{ marginBottom: 16 }}>
+          <label>본문</label>
+          <RichEditor value={content} onChange={setContent} />
+        </div>
+      )}
+
+      {/* 가이드 형식 */}
+      {format === "guide" && (
+        <>
       <div className="field" style={{ marginBottom: 16 }}>
         <label htmlFor="problem">1. 문제 상황</label>
         <textarea
@@ -359,6 +415,8 @@ export function CreateArchiveForm({
           disabled={pending}
         />
       </div>
+        </>
+      )}
 
       {error && (
         <p className="ci-hint" style={{ color: "#F03E3E", marginTop: 16 }}>

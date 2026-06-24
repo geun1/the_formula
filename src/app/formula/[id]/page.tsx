@@ -8,6 +8,7 @@ import {
   CoverGradient,
   Markdown,
 } from "@/components/ui";
+import { sanitizeRichHtml } from "@/lib/sanitize";
 import {
   getArchiveDetail,
   getAuthorOtherPosts,
@@ -263,6 +264,16 @@ export default async function FormulaDetailPage({ params }: PageProps) {
                 </div>
               )}
             </>
+          ) : post.formula && post.formula.format === "free" ? (
+            // 자유 형식 — 작성한 HTML 그대로(렌더 시 재새니타이즈, 심층 방어)
+            <div className="d-block">
+              <div
+                className="md free-body"
+                dangerouslySetInnerHTML={{
+                  __html: sanitizeRichHtml(post.formula.content),
+                }}
+              />
+            </div>
           ) : post.formula ? (
             <>
               <div className="d-block">

@@ -27,6 +27,8 @@ import {
 } from "@/db/schema";
 import { auth } from "@/auth";
 import { findOrCreateConversation } from "@/lib/queries";
+import { sanitizeRichHtml, richTextLength } from "@/lib/sanitize";
+import type { FormulaBody } from "@/lib/contract";
 import {
   AGENT_CURATOR_ID,
   ACTIVITY_TYPES,
@@ -428,14 +430,19 @@ const createArchiveSchema = z.object({
   tags: z.array(z.string().trim().min(1)).max(8).default([]),
   difficulty: z.enum(DIFFICULTIES).default("intermediate"),
   workType: z.string().trim().max(40).nullish(),
+  // 작성 양식. guide=구조화 폼 / free=자유 에디터(HTML).
+  format: z.enum(["guide", "free"]).default("guide"),
   formula: z.object({
-    problem: z.string().trim().min(1, "문제 상황을 입력해 주세요.").max(2000),
-    hypothesis: z.string().trim().min(1, "가설을 입력해 주세요.").max(2000),
+    // guide 일 때만 필수 — 형식별 검증은 액션에서(아래) 수행.
+    problem: z.string().trim().max(2000).default(""),
+    hypothesis: z.string().trim().max(2000).default(""),
     tools: z.array(z.string().trim().min(1)).max(12).default([]),
     prompt: z.string().trim().max(4000).nullish(),
-    process: z.string().trim().min(1, "적용 과정을 입력해 주세요.").max(4000),
-    result: z.string().trim().min(1, "결과를 입력해 주세요.").max(2000),
+    process: z.string().trim().max(4000).default(""),
+    result: z.string().trim().max(2000).default(""),
     timeSaved: z.string().trim().max(80).default(""),
+    // free 일 때 자유 본문(HTML, 새니타이즈 전). 길이 여유.
+    content: z.string().trim().max(60000).default(""),
   }),
   // 참고한 아티클(cardnews) post.id. 선택.
   relatedArticleId: z.string().trim().min(1).nullish(),
@@ -473,6 +480,39 @@ export async function createArchive(
     relatedArticleId = art.id;
   }
 
+  // ── 형식별 검증 + formula 본문 구성 ──────────────────────────────
+  const f = parsed.data.formula;
+  let formulaBody: FormulaBody;
+  if (parsed.data.format === "free") {
+    const content = sanitizeRichHtml(f.content); // XSS 차단
+    if (richTextLength(content) < 1) return fail("내용을 입력해 주세요.");
+    formulaBody = {
+      format: "free",
+      content,
+      problem: "",
+      hypothesis: "",
+      tools: [],
+      process: "",
+      result: "",
+      timeSaved: "",
+    };
+  } else {
+    if (!f.problem) return fail("문제 상황을 입력해 주세요.");
+    if (!f.hypothesis) return fail("가설을 입력해 주세요.");
+    if (!f.process) return fail("적용 과정을 입력해 주세요.");
+    if (!f.result) return fail("결과를 입력해 주세요.");
+    formulaBody = {
+      format: "guide",
+      problem: f.problem,
+      hypothesis: f.hypothesis,
+      tools: f.tools,
+      prompt: f.prompt ?? undefined,
+      process: f.process,
+      result: f.result,
+      timeSaved: f.timeSaved,
+    };
+  }
+
   const [row] = await db
     .insert(posts)
     .values({
@@ -491,15 +531,7 @@ export async function createArchive(
       sourceUrl: null,
       collectedAt: null,
       cardnews: null,
-      formula: {
-        problem: parsed.data.formula.problem,
-        hypothesis: parsed.data.formula.hypothesis,
-        tools: parsed.data.formula.tools,
-        prompt: parsed.data.formula.prompt ?? undefined,
-        process: parsed.data.formula.process,
-        result: parsed.data.formula.result,
-        timeSaved: parsed.data.formula.timeSaved,
-      },
+      formula: formulaBody,
       relatedArticleId,
     })
     .returning({ id: posts.id });
