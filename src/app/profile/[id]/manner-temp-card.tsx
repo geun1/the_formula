@@ -80,7 +80,7 @@ export function MannerTempCard({ stats }: { stats: ActivityStats }) {
               className="mt-seg"
               style={{ flexGrow: s.width, background: s.band.color, opacity: s.opacity }}
             >
-              <span className="mt-seg-label">{s.band.label}</span>
+              <span className="mt-seg-label">{s.band.emoji} {s.band.label}</span>
             </div>
           ))}
           {/* 핀만 트랙 내부에 */}
