@@ -10,16 +10,8 @@ import {
   getSaved,
   getTopBookmarkTags,
 } from "@/lib/queries";
-import { Chip, GradeBadge, ActivityCard } from "@/components/ui";
+import { Chip, GradeBadge } from "@/components/ui";
 import { avaFor, initialOf, fmtCount, timeAgo } from "@/lib/ref-style";
-import type { ApplicationStatus } from "@/lib/contract";
-
-// 내 지원 상태 라벨/색 클래스.
-const APP_STATUS_LABEL: Record<ApplicationStatus, string> = {
-  pending: "검토 중",
-  accepted: "수락됨",
-  rejected: "반려됨",
-};
 import { computeTrust } from "@/lib/trust";
 import { ProfileActions } from "./profile-follow";
 import { ProfileFormulaGrid } from "./profile-grid";
@@ -94,6 +86,11 @@ export default async function ProfilePage({
   const pendingApplications = appliedActivities.filter(
     (a) => a.status === "pending",
   );
+  const moimList = [
+    ...ongoingActivities.map(({ activity }) => ({ activity, label: "활동 중", cls: "moim-active" })),
+    ...(isMe ? pendingApplications.map(({ activity }) => ({ activity, label: "검토 중", cls: "moim-pending" })) : []),
+    ...completedActivities.map(({ activity }) => ({ activity, label: "완료", cls: "moim-done" })),
+  ];
 
   // 북마크한 공식 — 본인 마이페이지에서만(저장함은 사적).
   const savedPosts = isMe ? await getSaved(user.id) : [];
@@ -189,7 +186,7 @@ export default async function ProfilePage({
           <div className="profile-name-row">
             <span className="pn">
               {user.name}
-              {role && <span className="pr-inline"> ({role})</span>}
+              {role && <span className="pr-inline"> {role}</span>}
             </span>
             {isMe && (
               <Link href="/account" className="btn btn-ghost" style={{ fontSize: 12, padding: "3px 10px" }}>
@@ -243,10 +240,6 @@ export default async function ProfilePage({
           <div className="l">저장받음</div>
         </div>
         <div className="stat">
-          <div className="n">{completedActivities.length}</div>
-          <div className="l">모임완주</div>
-        </div>
-        <div className="stat">
           <div className="n">{fmtCount(followerCount)}</div>
           <div className="l">팔로워</div>
         </div>
@@ -294,9 +287,6 @@ export default async function ProfilePage({
         <ul className="timeline">
           {timeline.map((ev, i) => (
             <li key={i} className="tl-item">
-              <span className="tl-emoji" aria-hidden>
-                {ev.emoji}
-              </span>
               {ev.href ? (
                 <Link href={ev.href} className="tl-text">
                   {ev.text}
@@ -310,68 +300,33 @@ export default async function ProfilePage({
         </ul>
       )}
 
-      {/* 완주한 모임 — 공개(신뢰 신호) */}
-      {completedActivities.length > 0 && (
+      {/* 모임 — 활동중/검토중/완료 통합 리스트 */}
+      {moimList.length > 0 ? (
         <>
           <div className="sec">
-            <h2>완주한 모임</h2>
-            <span className="more">{completedActivities.length}개 완주</span>
+            <h2>모임</h2>
+            <span className="more">{moimList.length}개</span>
           </div>
-          <div className="grid">
-            {completedActivities.map(({ activity }) => (
-              <ActivityCard key={activity.id} activity={activity} />
+          <ul className="moim-list">
+            {moimList.map(({ activity, label, cls }) => (
+              <li key={activity.id} className="moim-row">
+                <Link href={`/activities/${activity.id}`} className="moim-link">
+                  <span className="moim-type">{activity.type === "study" ? "스터디" : "프로젝트"}</span>
+                  <span className="moim-title">{activity.title}</span>
+                </Link>
+                <span className={`moim-badge ${cls}`}>{label}</span>
+              </li>
             ))}
-          </div>
+          </ul>
         </>
-      )}
-
-      {/* 참여중인 모임 — 공개 */}
-      {ongoingActivities.length > 0 && (
+      ) : isMe ? (
         <>
           <div className="sec">
-            <h2>참여중인 모임</h2>
-            <span className="more">{ongoingActivities.length}개</span>
+            <h2>모임</h2>
           </div>
-          <div className="grid">
-            {ongoingActivities.map(({ activity }) => (
-              <ActivityCard key={activity.id} activity={activity} />
-            ))}
-          </div>
+          <p className="page-sub">아직 참여한 모임이 없어요. 스터디나 프로젝트에 지원해보세요.</p>
         </>
-      )}
-
-      {/* 지원 중 — 본인만(검토 대기) */}
-      {isMe && pendingApplications.length > 0 && (
-        <>
-          <div className="sec">
-            <h2>지원 중인 모임</h2>
-            <span className="more">{pendingApplications.length}개</span>
-          </div>
-          <div className="grid">
-            {pendingApplications.map(({ activity, status }) => (
-              <div key={activity.id} className={`applied-cell applied-cell-${status}`}>
-                <ActivityCard activity={activity} />
-                <div className="applied-footer">{APP_STATUS_LABEL[status]}</div>
-              </div>
-            ))}
-          </div>
-        </>
-      )}
-
-      {/* 본인인데 모임 활동이 전혀 없을 때 */}
-      {isMe &&
-        completedActivities.length === 0 &&
-        ongoingActivities.length === 0 &&
-        pendingApplications.length === 0 && (
-          <>
-            <div className="sec">
-              <h2>참여한 모임</h2>
-            </div>
-            <p className="page-sub">
-              아직 참여한 모임이 없어요. 스터디나 프로젝트에 지원해보세요.
-            </p>
-          </>
-        )}
+      ) : null}
 
       <div className="sec">
         <h2>{isMe ? "내 공식" : `${callName}님의 공식`}</h2>

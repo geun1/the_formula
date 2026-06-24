@@ -4,7 +4,6 @@ import Link from "next/link";
 import type { FeedPost } from "@/lib/queries";
 import { categories } from "@/lib/contract";
 import { Chip, ShareButton } from "@/components/ui";
-import { avaFor, initialOf } from "@/lib/ref-style";
 
 /**
  * 프로필의 작성 공식 목록 — 레퍼런스 .grid > .fcard(아카이브 카드) 구조.
@@ -36,12 +35,6 @@ function FCard({ post }: { post: FeedPost }) {
         <h3>{post.title}</h3>
         {summary && <p className="fc-sum">{summary}</p>}
         <div className="fc-foot">
-          <span className="author">
-            <span className={`avatar-sm ${avaFor(post.authorId)}`} aria-hidden>
-              {initialOf(post.authorName)}
-            </span>
-            {post.authorName}
-          </span>
           <span className="fc-stats">
             <span className="fc-stat">👁 {post.viewCount}</span>
             <span className="fc-stat">💬 {post.commentCount}</span>

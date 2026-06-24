@@ -321,6 +321,20 @@
   .applied-cell-accepted .applied-footer{background:var(--blue-weak);color:var(--blue);}
   .applied-cell-rejected .applied-footer{background:#FEECEC;color:#F03E3E;}
 
+  /* 모임 통합 리스트 */
+  .moim-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;background:var(--card);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden;}
+  .moim-row{display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--border-soft);}
+  .moim-row:last-child{border-bottom:none;}
+  .moim-link{display:flex;align-items:center;gap:8px;flex:1;min-width:0;text-decoration:none;}
+  .moim-icon{font-size:16px;flex-shrink:0;}
+  .moim-type{font-size:11px;font-weight:600;color:var(--t3);flex-shrink:0;}
+  .moim-title{font-size:14px;font-weight:600;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;transition:color .15s;}
+  .moim-link:hover .moim-title{color:var(--accent);}
+  .moim-badge{flex-shrink:0;font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;background:var(--bg-2);color:var(--t3);}
+  .moim-active{background:var(--accent-soft);color:var(--accent);}
+  .moim-pending{background:var(--bg-2);color:var(--t2);}
+  .moim-done{background:var(--green-soft);color:var(--green);}
+
   /* ===== Directory layout ===== */
   .dir-wrap{display:grid;grid-template-columns:192px 1fr;gap:36px;align-items:start;}
   .dir-nav{position:sticky;top:80px;background:var(--white);border-radius:var(--r);padding:16px;box-shadow:var(--shadow);}

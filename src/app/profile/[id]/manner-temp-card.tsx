@@ -71,7 +71,7 @@ export function MannerTempCard({ stats }: { stats: ActivityStats }) {
       {/* 래퍼: 레이블은 트랙 overflow:hidden 밖에서 절대 배치 */}
       <div className="mt-wrap">
         <span className="mt-marker-label" style={{ left: `${labelPos}%`, color: live.color }}>
-          {live.emoji} {live.label} {val.toFixed(1)}°
+          {live.label} {val.toFixed(1)}
         </span>
         <div className="mt-track">
           {segs.map((s) => (
@@ -80,7 +80,7 @@ export function MannerTempCard({ stats }: { stats: ActivityStats }) {
               className="mt-seg"
               style={{ flexGrow: s.width, background: s.band.color, opacity: s.opacity }}
             >
-              <span className="mt-seg-label">{s.band.emoji} {s.band.label}</span>
+              <span className="mt-seg-label">{s.band.label}</span>
             </div>
           ))}
           {/* 핀만 트랙 내부에 */}
@@ -90,8 +90,8 @@ export function MannerTempCard({ stats }: { stats: ActivityStats }) {
         </div>
       </div>
       <div className="mt-scale">
-        <span>{TRUST_BASE}°</span>
-        <span>{TRUST_MAX}°</span>
+        <span>{TRUST_BASE}</span>
+        <span>{TRUST_MAX}</span>
       </div>
     </div>
   );

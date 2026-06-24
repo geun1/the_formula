@@ -3,14 +3,13 @@
 // =============================================================================
 // 이 파일 하나만 고치면 render/storage/계약을 안 건드리고 등급을 재튜닝할 수 있다.
 // 원칙: "검증 가능한 것 > 남이 인정한 것 > 내가 한 것" — 신뢰는 위조 어려운 신호에 무게.
-// 온도 = 36.5 + 62.5 × raw/(raw+K)  — 감속곡선(99°에 점근, 위로 갈수록 둔화).
+// 온도 = 100 × raw/(raw+K)  — 감속곡선(100에 점근, 위로 갈수록 둔화).
 // raw = 4계층(검증/인정/자가/정체성) 가중합. 자가 신호는 캡으로 양치기 차단.
 // =============================================================================
 import type { ActivityStats, Tier } from "./contract";
 
-export const TRUST_BASE = 36.5; // 정상체온 메타포
-export const TRUST_MAX = 99;
-const SPAN = TRUST_MAX - TRUST_BASE; // 62.5
+export const TRUST_BASE = 0;
+export const TRUST_MAX = 100;
 export const SATURATION_K = 60; // 감속상수(클수록 완만)
 
 // 신호별 가중치 — 검증 > 인정 > 자가
@@ -47,12 +46,12 @@ export interface TierBand {
   caption: string;
 }
 
-// 높은 등급부터 (find 가 첫 매칭 반환). 감속곡선 분포에 맞게 경계 재튜닝.
+// 높은 등급부터 (find 가 첫 매칭 반환). 0~100 스케일 기준 경계.
 export const TIER_BANDS: TierBand[] = [
-  { tier: "master", min: 88, label: "AX마스터", color: "#f59e0b", emoji: "👑", caption: "상위 0.1% 신뢰" },
-  { tier: "builder", min: 78, label: "빌더", color: "#fbbf24", emoji: "🛠", caption: "커뮤니티를 만들어가요" },
-  { tier: "activist", min: 60, label: "활동가", color: "#a78bfa", emoji: "🔥", caption: "활발하게 활동해요" },
-  { tier: "contributor", min: 46, label: "기여자", color: "#60a5fa", emoji: "🌿", caption: "꾸준히 참여해요" },
+  { tier: "master", min: 82, label: "AX마스터", color: "#f59e0b", emoji: "👑", caption: "상위 0.1% 신뢰" },
+  { tier: "builder", min: 65, label: "빌더", color: "#fbbf24", emoji: "🛠", caption: "커뮤니티를 만들어가요" },
+  { tier: "activist", min: 38, label: "활동가", color: "#a78bfa", emoji: "🔥", caption: "활발하게 활동해요" },
+  { tier: "contributor", min: 15, label: "기여자", color: "#60a5fa", emoji: "🌿", caption: "꾸준히 참여해요" },
   { tier: "sprout", min: 0, label: "새싹", color: "#34d399", emoji: "🌱", caption: "이제 막 시작했어요" },
 ];
 
@@ -94,12 +93,12 @@ export function rawScore(s: ActivityStats): number {
   return contributionsOf(s).reduce((sum, c) => sum + c.points, 0);
 }
 
-/** stats → 매너온도(36.5~99). 감속곡선으로 상한 점근. */
+/** stats → 매너온도(0~100). 감속곡선으로 상한 점근. */
 export function scoreFromStats(s: ActivityStats): number {
   const raw = rawScore(s);
-  const score = TRUST_BASE + SPAN * (raw / (raw + SATURATION_K));
-  const clamped = Math.min(Math.max(score, TRUST_BASE), TRUST_MAX);
-  return Math.round(clamped * 10) / 10; // 소수 1자리
+  const score = TRUST_MAX * (raw / (raw + SATURATION_K));
+  const clamped = Math.min(Math.max(score, 0), TRUST_MAX);
+  return Math.round(clamped * 10) / 10;
 }
 
 export function tierBandFor(score: number): TierBand {
@@ -114,15 +113,15 @@ export function badgeLabelFor(score: number): string {
   return tierBandFor(score).label;
 }
 
-/** 게이지 채움 비율 0~1 (36.5°→99°) */
+/** 게이지 채움 비율 0~1 */
 export function gaugeRatio(score: number): number {
-  return Math.max(0, Math.min(1, (score - TRUST_BASE) / (TRUST_MAX - TRUST_BASE)));
+  return Math.max(0, Math.min(1, score / TRUST_MAX));
 }
 
 export interface TrustBreakdown {
-  base: number; // 36.5
+  base: number;
   items: TrustContribution[]; // points 내림차순, 0 기여 제외
-  rawTotal: number; // base + raw (감속 전 참고값)
+  rawTotal: number; // raw 가중합 (감속 전 참고값)
   score: number; // 실제 매너온도
 }
 
@@ -135,7 +134,7 @@ export function breakdown(s: ActivityStats): TrustBreakdown {
   return {
     base: TRUST_BASE,
     items,
-    rawTotal: Math.round((TRUST_BASE + raw) * 10) / 10,
+    rawTotal: Math.round(raw * 10) / 10,
     score: scoreFromStats(s),
   };
 }
