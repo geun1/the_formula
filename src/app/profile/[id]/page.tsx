@@ -375,20 +375,6 @@ export default async function ProfilePage({
           </>
         )}
 
-      {topTags.length > 0 && (
-        <>
-          <div className="sec">
-            <h2>자주 보는 태그</h2>
-            <span className="more">북마크 기준</span>
-          </div>
-          <div className="chips pf-tags">
-            {topTags.map(({ tag }) => (
-              <Chip key={tag}>#{tag}</Chip>
-            ))}
-          </div>
-        </>
-      )}
-
       <div className="sec">
         <h2>{isMe ? "내 공식" : `${callName}님의 공식`}</h2>
         <span className="more">{formulas.length}개</span>
@@ -416,6 +402,19 @@ export default async function ProfilePage({
             </p>
           ) : (
             <ProfileFormulaGrid posts={savedPosts} />
+          )}
+          {topTags.length > 0 && (
+            <>
+              <div className="sec">
+                <h2>자주 보는 태그</h2>
+                <span className="more">북마크 기준</span>
+              </div>
+              <div className="chips pf-tags">
+                {topTags.map(({ tag }) => (
+                  <Chip key={tag}>#{tag}</Chip>
+                ))}
+              </div>
+            </>
           )}
         </>
       )}

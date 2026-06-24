@@ -313,8 +313,8 @@
   a.tl-text:hover{color:var(--blue);}
   .tl-at{flex-shrink:0;font-size:12.5px;color:var(--t3);font-weight:600;}
   /* 지원/참여 모임 — 내 공식과 동일하게 공용 .grid 사용. 셀은 지원상태 pill 부착용 */
-  .applied-cell{display:flex;flex-direction:column;gap:6px;}
-  .applied-status{align-self:flex-end;font-size:11px;font-weight:600;border-radius:20px;padding:2px 10px;}
+  .applied-cell{position:relative;}
+  .applied-status{position:absolute;top:14px;right:14px;z-index:1;font-size:11px;font-weight:600;border-radius:20px;padding:2px 10px;}
   .applied-pending{background:var(--bg-2);color:var(--t2);}
   .applied-accepted{background:var(--blue-weak);color:var(--blue);}
   .applied-rejected{background:#FEECEC;color:#F03E3E;}
