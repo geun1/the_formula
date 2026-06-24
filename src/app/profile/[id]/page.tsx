@@ -141,6 +141,11 @@ export default async function ProfilePage({
           <div className="pn">
             {user.name}{" "}
             <GradeBadge tier={user.tier} score={user.trustScore} iconOnly />
+            {isMe && (
+              <Link href="/account" className="btn btn-ghost" style={{ fontSize: 12, padding: "3px 10px", marginLeft: 8 }}>
+                편집
+              </Link>
+            )}
           </div>
           {role && <div className="pr">{role}</div>}
         </div>
@@ -196,13 +201,7 @@ export default async function ProfilePage({
         </div>
       </div>
 
-      {isMe ? (
-        <div className="profile-actions">
-          <Link href="/account" className="btn btn-ghost">
-            프로필 편집
-          </Link>
-        </div>
-      ) : (
+      {!isMe && (
         <ProfileActions
           targetUserId={user.id}
           targetName={user.name}
