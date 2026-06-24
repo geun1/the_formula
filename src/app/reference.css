@@ -285,7 +285,7 @@
   .profile-link{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--t2);background:var(--bg-2);border-radius:20px;padding:6px 13px;transition:background .15s,color .15s;}
   .profile-link:hover{background:var(--blue-weak);color:var(--blue);}
   /* 매너온도 바 — 전체 척도 + 단계 라벨 + 내 위치 마커 */
-  .mt-card{padding:28px 0 6px;}
+  .mt-card{padding:28px 0 6px;max-width:320px;}
   .mt-wrap{position:relative;padding-top:32px;}
   .mt-track{position:relative;display:flex;height:32px;border-radius:8px;overflow:hidden;}
   .mt-seg{display:flex;align-items:center;justify-content:center;min-width:0;}
