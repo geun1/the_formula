@@ -136,8 +136,6 @@ export default async function ProfilePage({
         </div>
 
         <div className="profile-right">
-          <MannerTempCard stats={user.activityStats} />
-
           <div className="profile-name-row">
             <span className="pn">{user.name}</span>
             {isMe && (
@@ -215,6 +213,8 @@ export default async function ProfilePage({
           initialSaved={initialSaved}
         />
       )}
+
+      <MannerTempCard stats={user.activityStats} />
 
       <div className="sec">
         <h2>활동 이력</h2>
