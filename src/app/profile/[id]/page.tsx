@@ -11,6 +11,7 @@ import {
   getTopBookmarkTags,
 } from "@/lib/queries";
 import { Chip, GradeBadge } from "@/components/ui";
+import { SignOutButton } from "@/components/ui/auth-buttons";
 import { avaFor, initialOf, fmtCount, timeAgo } from "@/lib/ref-style";
 import { computeTrust } from "@/lib/trust";
 import { ProfileActions } from "./profile-follow";
@@ -371,6 +372,7 @@ export default async function ProfilePage({
           )}
         </>
       )}
+      {isMe && <SignOutButton className="pf-signout" />}
     </div>
   );
 }

@@ -335,6 +335,9 @@
   .moim-pending{background:var(--bg-2);color:var(--t2);}
   .moim-done{background:var(--green-soft);color:var(--green);}
 
+  .pf-signout{margin-top:40px;width:100%;background:none;border:1px solid var(--border);color:var(--t3);font-size:13px;padding:10px;border-radius:var(--r-sm);cursor:pointer;transition:color .15s,border-color .15s;}
+  .pf-signout:hover{color:var(--t1);border-color:var(--t3);}
+
   /* ===== Directory layout ===== */
   .dir-wrap{display:grid;grid-template-columns:192px 1fr;gap:36px;align-items:start;}
   .dir-nav{position:sticky;top:80px;background:var(--white);border-radius:var(--r);padding:16px;box-shadow:var(--shadow);}
