@@ -20,6 +20,7 @@ const APP_STATUS_LABEL: Record<ApplicationStatus, string> = {
   accepted: "수락됨",
   rejected: "반려됨",
 };
+import { computeTrust } from "@/lib/trust";
 import { ProfileActions } from "./profile-follow";
 import { ProfileFormulaGrid } from "./profile-grid";
 import { MannerTempCard } from "./manner-temp-card";
@@ -101,6 +102,32 @@ export default async function ProfilePage({
   const role = [user.jobRole ?? user.role, user.company]
     .filter(Boolean)
     .join(" · ");
+
+  // 달성 조건 충족 시 자동으로 표시되는 배지
+  const { tier } = computeTrust(user.activityStats);
+  const TIER_RANK: Record<string, number> = { sprout: 0, contributor: 1, activist: 2, builder: 3, master: 4 };
+  const tierRank = TIER_RANK[tier] ?? 0;
+  const s = user.activityStats;
+  const badges = [
+    user.github                          && { emoji: "🔗", label: "GitHub 연결" },
+    s.hasCompany                         && { emoji: "🏢", label: "소속 인증" },
+    s.onboarded && user.bio              && { emoji: "📝", label: "프로필 완성" },
+    s.formulaCount >= 1                  && { emoji: "🌱", label: "첫 공식" },
+    s.formulaCount >= 5                  && { emoji: "✍️", label: "공식 5개" },
+    s.formulaCount >= 10                 && { emoji: "✍️", label: "공식 10개" },
+    (s.verifiedFormulaCount ?? 0) >= 1   && { emoji: "✅", label: "첫 검증 공식" },
+    (s.verifiedFormulaCount ?? 0) >= 5   && { emoji: "✅", label: "검증 공식 5개" },
+    completedActivities.length >= 1      && { emoji: "🏁", label: "첫 모임 완주" },
+    completedActivities.length >= 3      && { emoji: "🏆", label: "모임 3회 완주" },
+    savesReceived >= 10                  && { emoji: "💾", label: "저장 10회" },
+    savesReceived >= 50                  && { emoji: "💾", label: "저장 50회" },
+    followerCount >= 10                  && { emoji: "👥", label: "팔로워 10명" },
+    followerCount >= 50                  && { emoji: "👥", label: "팔로워 50명" },
+    tierRank >= 1                        && { emoji: "🌿", label: "기여자" },
+    tierRank >= 2                        && { emoji: "💪", label: "활동가" },
+    tierRank >= 3                        && { emoji: "🔨", label: "빌더" },
+    tierRank >= 4                        && { emoji: "👑", label: "AX 마스터" },
+  ].filter(Boolean) as { emoji: string; label: string }[];
 
   // 이름 끝 글자 기준 호칭(서연님의 공식) — 마지막 2글자 또는 전체.
   const callName = user.name.length > 2 ? user.name.slice(-2) : user.name;
@@ -205,6 +232,14 @@ export default async function ProfilePage({
           <div className="l">팔로잉</div>
         </div>
       </div>
+
+      {badges.length > 0 && (
+        <div className="profile-badges">
+          {badges.map((b) => (
+            <span key={b.label} className="profile-badge">{b.emoji} {b.label}</span>
+          ))}
+        </div>
+      )}
 
       {!isMe && (
         <ProfileActions
