@@ -274,7 +274,7 @@
 
   /* ===== Profile ===== */
   /* 프로필 히어로 — 좌: 아바타 고정 / 우: 컨텐츠 컬럼 */
-  .profile-hero{display:flex;gap:28px;align-items:flex-start;}
+  .profile-hero{display:flex;gap:28px;align-items:center;margin-top:16px;}
   .profile-right{flex:1;min-width:0;}
   .profile-name-row{display:flex;align-items:center;gap:10px;margin-top:10px;}
   .avatar-lg{width:80px;height:80px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:28px;color:#fff;flex-shrink:0;}
