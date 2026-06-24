@@ -137,7 +137,10 @@ export default async function ProfilePage({
 
         <div className="profile-right">
           <div className="profile-name-row">
-            <span className="pn">{user.name}</span>
+            <span className="pn">
+              {user.name}
+              {role && <span className="pr-inline"> ({role})</span>}
+            </span>
             {isMe && (
               <Link href="/account" className="btn btn-ghost" style={{ fontSize: 12, padding: "3px 10px" }}>
                 편집
@@ -145,12 +148,10 @@ export default async function ProfilePage({
             )}
           </div>
 
-          {role && <div className="pr">{role}</div>}
-
           {user.interests.length > 0 && (
-            <div className="chips pf-tags">
+            <div className="profile-hashtags">
               {user.interests.map((it) => (
-                <Chip key={it}>{it}</Chip>
+                <span key={it} className="profile-hashtag">#{it}</span>
               ))}
             </div>
           )}
