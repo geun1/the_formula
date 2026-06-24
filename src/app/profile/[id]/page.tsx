@@ -8,6 +8,7 @@ import {
   getActivityTimeline,
   getAppliedActivities,
   getSaved,
+  getTopBookmarkTags,
 } from "@/lib/queries";
 import { Chip, GradeBadge, ActivityCard } from "@/components/ui";
 import { avaFor, initialOf, fmtCount, timeAgo } from "@/lib/ref-style";
@@ -95,6 +96,7 @@ export default async function ProfilePage({
 
   // 북마크한 공식 — 본인 마이페이지에서만(저장함은 사적).
   const savedPosts = isMe ? await getSaved(user.id) : [];
+  const topTags = await getTopBookmarkTags(user.id, 5);
 
   const role = [user.jobRole ?? user.role, user.company]
     .filter(Boolean)
@@ -307,6 +309,20 @@ export default async function ProfilePage({
           <div className="chips pf-tags">
             {user.interests.map((it) => (
               <Chip key={it}>{it}</Chip>
+            ))}
+          </div>
+        </>
+      )}
+
+      {topTags.length > 0 && (
+        <>
+          <div className="sec">
+            <h2>자주 보는 태그</h2>
+            <span className="more">북마크 기준</span>
+          </div>
+          <div className="chips pf-tags">
+            {topTags.map(({ tag }) => (
+              <Chip key={tag}>#{tag}</Chip>
             ))}
           </div>
         </>

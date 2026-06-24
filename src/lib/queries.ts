@@ -1207,6 +1207,28 @@ export async function getSaved(userId: string): Promise<FeedPost[]> {
   return rows.map(rowToPost);
 }
 
+/** 북마크한 글의 해시태그 빈도 상위 N개. */
+export async function getTopBookmarkTags(
+  userId: string,
+  limit = 5,
+): Promise<{ tag: string; count: number }[]> {
+  if (!userId) return [];
+  const rows = await db.execute(sql`
+    SELECT tag, count(*)::int AS cnt
+    FROM bookmark b
+    JOIN post p ON p.id = b."postId"
+    CROSS JOIN LATERAL jsonb_array_elements_text(p.tags) AS tag
+    WHERE b."userId" = ${userId}
+    GROUP BY tag
+    ORDER BY cnt DESC
+    LIMIT ${limit}
+  `);
+  return (rows.rows as { tag: string; cnt: number }[]).map((r) => ({
+    tag: r.tag,
+    count: Number(r.cnt),
+  }));
+}
+
 // =============================================================================
 // 4) 모임 — 목록 / 상세
 // =============================================================================
