@@ -61,26 +61,32 @@ export function MannerTempCard({ stats }: { stats: ActivityStats }) {
     opacity: 0.45 + 0.55 * (i / (asc.length - 1)),
   }));
 
-  const pos = gaugeRatio(val) * 100; // 마커 위치 %
-  const live = tierBandFor(val); // 현재값 기준 등급(상승하며 바뀜)
+  const pos = gaugeRatio(val) * 100; // 핀 위치 %
+  // 레이블은 가장자리에서 최소 10% 안쪽에 클램프 (텍스트 넘침 방지)
+  const labelPos = Math.max(10, Math.min(90, pos));
+  const live = tierBandFor(val);
 
   return (
     <div className="mt-card" ref={ref}>
-      <div className="mt-track">
-        {segs.map((s) => (
-          <div
-            key={s.band.tier}
-            className="mt-seg"
-            style={{ flexGrow: s.width, background: s.band.color, opacity: s.opacity }}
-          >
-            <span className="mt-seg-label">{s.band.label}</span>
+      {/* 래퍼: 레이블은 트랙 overflow:hidden 밖에서 절대 배치 */}
+      <div className="mt-wrap">
+        <span className="mt-marker-label" style={{ left: `${labelPos}%`, color: live.color }}>
+          {live.emoji} {live.label} {val.toFixed(1)}°
+        </span>
+        <div className="mt-track">
+          {segs.map((s) => (
+            <div
+              key={s.band.tier}
+              className="mt-seg"
+              style={{ flexGrow: s.width, background: s.band.color, opacity: s.opacity }}
+            >
+              <span className="mt-seg-label">{s.band.label}</span>
+            </div>
+          ))}
+          {/* 핀만 트랙 내부에 */}
+          <div className="mt-marker" style={{ left: `${pos}%` }}>
+            <span className="mt-marker-pin" style={{ background: live.color }} />
           </div>
-        ))}
-        <div className="mt-marker" style={{ left: `${pos}%` }}>
-          <span className="mt-marker-label" style={{ color: live.color }}>
-            {live.emoji} {live.label} {val.toFixed(1)}°
-          </span>
-          <span className="mt-marker-pin" style={{ background: live.color }} />
         </div>
       </div>
       <div className="mt-scale">
