@@ -21,6 +21,7 @@ const APP_STATUS_LABEL: Record<ApplicationStatus, string> = {
 };
 import { ProfileActions } from "./profile-follow";
 import { ProfileFormulaGrid } from "./profile-grid";
+import { MannerTempCard } from "./manner-temp-card";
 
 type Params = { id: string };
 
@@ -188,6 +189,8 @@ export default async function ProfilePage({
           )}
         </div>
       )}
+
+      <MannerTempCard stats={user.activityStats} />
 
       <div className="stats">
         <div className="stat">

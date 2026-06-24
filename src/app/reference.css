@@ -281,6 +281,17 @@
   .profile-links{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;}
   .profile-link{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--t2);background:var(--bg-2);border-radius:20px;padding:6px 13px;transition:background .15s,color .15s;}
   .profile-link:hover{background:var(--blue-weak);color:var(--blue);}
+  /* 매너온도 바 — 전체 척도 + 단계 라벨 + 내 위치 마커 */
+  .mt-card{margin-top:26px;background:var(--card);border-radius:var(--r);padding:48px 22px 16px;box-shadow:var(--shadow);max-width:600px;}
+  .mt-track{position:relative;display:flex;height:32px;border-radius:8px;}
+  .mt-seg{display:flex;align-items:center;justify-content:center;min-width:0;}
+  .mt-seg:first-child{border-radius:8px 0 0 8px;}
+  .mt-seg:last-child{border-radius:0 8px 8px 0;}
+  .mt-seg-label{font-size:11px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 4px;text-shadow:0 1px 2px rgba(0,0,0,.22);}
+  .mt-marker{position:absolute;top:0;bottom:0;transform:translateX(-50%);pointer-events:none;}
+  .mt-marker-pin{position:absolute;top:-4px;bottom:-4px;left:50%;width:3px;margin-left:-1.5px;border-radius:99px;box-shadow:0 0 0 2px var(--card);}
+  .mt-marker-label{position:absolute;bottom:calc(100% + 9px);left:50%;transform:translateX(-50%);white-space:nowrap;font-size:13.5px;font-weight:800;font-variant-numeric:tabular-nums;}
+  .mt-scale{display:flex;justify-content:space-between;margin-top:10px;font-size:11.5px;color:var(--t3);font-weight:600;font-variant-numeric:tabular-nums;}
   .stats{display:flex;gap:28px;margin-top:22px;}
   .stat .n{font-size:20px;font-weight:800;letter-spacing:-.02em;}
   .stat .l{font-size:12.5px;color:var(--t3);margin-top:2px;font-weight:600;}
