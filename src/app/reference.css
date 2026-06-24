@@ -273,16 +273,19 @@
   .ci-reply-btn:hover{color:var(--blue);}
 
   /* ===== Profile ===== */
-  .profile-head{display:flex;align-items:center;gap:18px;flex-wrap:wrap;}
+  /* 프로필 히어로 — 좌: 아바타 고정 / 우: 컨텐츠 컬럼 */
+  .profile-hero{display:flex;gap:20px;align-items:flex-start;}
+  .profile-right{flex:1;min-width:0;}
+  .profile-name-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:10px;}
   .avatar-lg{width:72px;height:72px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:28px;color:#fff;flex-shrink:0;}
-  .profile-head .pn{font-size:22px;font-weight:800;letter-spacing:-.02em;}
-  .profile-head .pr{font-size:14px;color:var(--t3);margin-top:3px;}
+  .pn{font-size:22px;font-weight:800;letter-spacing:-.02em;}
+  .pr{font-size:14px;color:var(--t3);margin-top:3px;}
   .profile-bio{font-size:15px;color:var(--t2);margin-top:18px;line-height:1.6;max-width:560px;}
-  .profile-links{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;}
+  .profile-links{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;}
   .profile-link{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--t2);background:var(--bg-2);border-radius:20px;padding:6px 13px;transition:background .15s,color .15s;}
   .profile-link:hover{background:var(--blue-weak);color:var(--blue);}
   /* 매너온도 바 — 전체 척도 + 단계 라벨 + 내 위치 마커 */
-  .mt-card{margin-top:18px;padding:32px 0 8px;}
+  .mt-card{padding:28px 0 6px;}
   .mt-wrap{position:relative;padding-top:32px;}
   .mt-track{position:relative;display:flex;height:32px;border-radius:8px;overflow:hidden;}
   .mt-seg{display:flex;align-items:center;justify-content:center;min-width:0;}
