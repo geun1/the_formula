@@ -122,63 +122,54 @@ export default async function ProfilePage({
         포뮬러
       </Link>
 
-      <div className="profile-hero">
-        <div className="profile-info">
-          <div className="profile-head">
-            <div className={`avatar-lg ${avaFor(user.id)}`} aria-hidden>
-              {user.image ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={user.image}
-                  alt=""
-                  style={{
-                    width: "100%",
-                    height: "100%",
-                    borderRadius: "50%",
-                    objectFit: "cover",
-                  }}
-                />
-              ) : (
-                initialOf(user.name)
-              )}
-            </div>
-            <div>
-              <div className="pn">
-                {user.name}{" "}
-                <GradeBadge tier={user.tier} score={user.trustScore} iconOnly />
-              </div>
-              {role && <div className="pr">{role}</div>}
-            </div>
-          </div>
-
-          {user.bio && <p className="profile-bio">{user.bio}</p>}
-
-          {(user.github || user.blog || user.homepage) && (
-            <div className="profile-links">
-              {user.github && (
-                <a href={user.github} target="_blank" rel="noopener noreferrer" className="profile-link">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-                    <path d="M12 2C6.48 2 2 6.58 2 12.25c0 4.53 2.87 8.37 6.84 9.73.5.1.68-.22.68-.49v-1.7c-2.78.62-3.37-1.2-3.37-1.2-.45-1.18-1.11-1.5-1.11-1.5-.91-.63.07-.62.07-.62 1 .07 1.53 1.06 1.53 1.06.9 1.56 2.36 1.11 2.94.85.09-.66.35-1.11.63-1.36-2.22-.26-4.56-1.13-4.56-5.04 0-1.11.39-2.02 1.03-2.73-.1-.26-.45-1.3.1-2.7 0 0 .84-.27 2.75 1.04a9.36 9.36 0 0 1 5 0c1.91-1.31 2.75-1.04 2.75-1.04.55 1.4.2 2.44.1 2.7.64.71 1.03 1.62 1.03 2.73 0 3.92-2.35 4.78-4.58 5.03.36.32.68.94.68 1.9v2.82c0 .27.18.6.69.49A10.02 10.02 0 0 0 22 12.25C22 6.58 17.52 2 12 2z" />
-                  </svg>
-                  GitHub
-                </a>
-              )}
-              {user.blog && (
-                <a href={user.blog} target="_blank" rel="noopener noreferrer" className="profile-link">
-                  <span aria-hidden>✍</span> 블로그
-                </a>
-              )}
-              {user.homepage && (
-                <a href={user.homepage} target="_blank" rel="noopener noreferrer" className="profile-link">
-                  <span aria-hidden>🌐</span> 홈페이지
-                </a>
-              )}
-            </div>
+      <div className="profile-head">
+        <div className={`avatar-lg ${avaFor(user.id)}`} aria-hidden>
+          {user.image ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={user.image}
+              alt=""
+              style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }}
+            />
+          ) : (
+            initialOf(user.name)
           )}
         </div>
-
-        <MannerTempCard stats={user.activityStats} />
+        <div>
+          <div className="pn">
+            {user.name}{" "}
+            <GradeBadge tier={user.tier} score={user.trustScore} iconOnly />
+          </div>
+          {role && <div className="pr">{role}</div>}
+        </div>
       </div>
+
+      <MannerTempCard stats={user.activityStats} />
+
+      {user.bio && <p className="profile-bio">{user.bio}</p>}
+
+      {(user.github || user.blog || user.homepage) && (
+        <div className="profile-links">
+          {user.github && (
+            <a href={user.github} target="_blank" rel="noopener noreferrer" className="profile-link">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                <path d="M12 2C6.48 2 2 6.58 2 12.25c0 4.53 2.87 8.37 6.84 9.73.5.1.68-.22.68-.49v-1.7c-2.78.62-3.37-1.2-3.37-1.2-.45-1.18-1.11-1.5-1.11-1.5-.91-.63.07-.62.07-.62 1 .07 1.53 1.06 1.53 1.06.9 1.56 2.36 1.11 2.94.85.09-.66.35-1.11.63-1.36-2.22-.26-4.56-1.13-4.56-5.04 0-1.11.39-2.02 1.03-2.73-.1-.26-.45-1.3.1-2.7 0 0 .84-.27 2.75 1.04a9.36 9.36 0 0 1 5 0c1.91-1.31 2.75-1.04 2.75-1.04.55 1.4.2 2.44.1 2.7.64.71 1.03 1.62 1.03 2.73 0 3.92-2.35 4.78-4.58 5.03.36.32.68.94.68 1.9v2.82c0 .27.18.6.69.49A10.02 10.02 0 0 0 22 12.25C22 6.58 17.52 2 12 2z" />
+              </svg>
+              GitHub
+            </a>
+          )}
+          {user.blog && (
+            <a href={user.blog} target="_blank" rel="noopener noreferrer" className="profile-link">
+              <span aria-hidden>✍</span> 블로그
+            </a>
+          )}
+          {user.homepage && (
+            <a href={user.homepage} target="_blank" rel="noopener noreferrer" className="profile-link">
+              <span aria-hidden>🌐</span> 홈페이지
+            </a>
+          )}
+        </div>
+      )}
 
       <div className="stats">
         <div className="stat">
