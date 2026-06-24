@@ -350,7 +350,7 @@ export default async function ProfilePage({
           <div className="grid">
             {pendingApplications.map(({ activity, status }) => (
               <div key={activity.id} className={`applied-cell applied-cell-${status}`}>
-                <ActivityCard activity={activity} className="rounded-b-none" />
+                <ActivityCard activity={activity} />
                 <div className="applied-footer">{APP_STATUS_LABEL[status]}</div>
               </div>
             ))}
