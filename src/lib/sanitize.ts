@@ -15,14 +15,22 @@ const OPTIONS: sanitizeHtml.IOptions = {
     "blockquote",
     "pre", "code",
     "a",
+    "img",
+    "table", "thead", "tbody", "tfoot", "tr", "th", "td", "colgroup", "col",
   ],
   allowedAttributes: {
     a: ["href", "target", "rel"],
     code: ["class"],
     pre: ["class"],
+    img: ["src", "alt"],
+    th: ["colspan", "rowspan"],
+    td: ["colspan", "rowspan"],
+    col: ["span"],
   },
-  // http/https/mailto 만 허용(javascript: 등 차단)
+  // http/https/mailto 만 허용(javascript:/data: 등 차단)
   allowedSchemes: ["http", "https", "mailto"],
+  // 이미지 src 는 http/https 만(data:/javascript: 차단)
+  allowedSchemesByTag: { img: ["http", "https"] },
   allowProtocolRelative: false,
   // 링크는 새 탭 + noopener 강제
   transformTags: {

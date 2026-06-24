@@ -671,3 +671,67 @@ body {
 .free-body a {
   color: var(--blue);
 }
+
+/* 에디터/자유본문 — 이미지 & 표 */
+.tiptap-content img,
+.free-body img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 10px;
+  margin: 12px 0;
+  display: block;
+}
+.tiptap-content img.ProseMirror-selectednode {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+.tiptap-content table,
+.free-body table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 14px 0;
+  table-layout: fixed;
+}
+.tiptap-content td,
+.tiptap-content th,
+.free-body td,
+.free-body th {
+  border: 1px solid var(--border-2);
+  padding: 8px 12px;
+  vertical-align: top;
+  text-align: left;
+  position: relative;
+}
+.tiptap-content th,
+.free-body th {
+  background: var(--bg-2);
+  font-weight: 700;
+  color: var(--t1);
+}
+/* 표 편집 — 선택 셀 / 컬럼 리사이즈 */
+.tiptap-content .selectedCell {
+  background: var(--blue-weak);
+}
+.tiptap-content .column-resize-handle {
+  position: absolute;
+  right: -2px;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--blue);
+  pointer-events: none;
+}
+.tiptap-content .tableWrapper {
+  overflow-x: auto;
+}
+.tiptap-content.resize-cursor {
+  cursor: col-resize;
+}
+/* 이미지 업로드 에러 */
+.re-err {
+  padding: 8px 12px;
+  background: #fff0f0;
+  color: #f03e3e;
+  font-size: 13px;
+  border-bottom: 1px solid var(--border);
+}
