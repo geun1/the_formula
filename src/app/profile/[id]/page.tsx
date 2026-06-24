@@ -183,6 +183,10 @@ export default async function ProfilePage({
           <div className="l">저장받음</div>
         </div>
         <div className="stat">
+          <div className="n">{completedActivities.length}</div>
+          <div className="l">완주</div>
+        </div>
+        <div className="stat">
           <div className="n">{fmtCount(followerCount)}</div>
           <div className="l">팔로워</div>
         </div>
