@@ -245,14 +245,17 @@ export default async function ProfilePage({
       <MannerTempCard stats={user.activityStats} />
 
       {badges.length > 0 && (
-        <div className="profile-badges">
-          {badges.map((b) => (
-            <span key={b.label} className="profile-badge">
-              <span className="profile-badge-emoji">{b.emoji}</span>
-              <span className="profile-badge-label">{b.label}</span>
-            </span>
-          ))}
-        </div>
+        <>
+          <div className="sec"><h2>나의 배지</h2></div>
+          <div className="profile-badges">
+            {badges.map((b) => (
+              <span key={b.label} className="profile-badge">
+                <span className="profile-badge-emoji">{b.emoji}</span>
+                <span className="profile-badge-label">{b.label}</span>
+              </span>
+            ))}
+          </div>
+        </>
       )}
 
       <div className="sec">
