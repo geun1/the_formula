@@ -139,10 +139,7 @@ export default async function ProfilePage({
           <MannerTempCard stats={user.activityStats} />
 
           <div className="profile-name-row">
-            <div className="pn">
-              {user.name}{" "}
-              <GradeBadge tier={user.tier} score={user.trustScore} iconOnly />
-            </div>
+            <span className="pn">{user.name}</span>
             {isMe && (
               <Link href="/account" className="btn btn-ghost" style={{ fontSize: 12, padding: "3px 10px" }}>
                 편집
