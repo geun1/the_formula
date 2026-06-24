@@ -477,6 +477,8 @@
     .pop-slide::-webkit-scrollbar{display:none;}
     .pop-card{flex:0 0 76%;scroll-snap-align:start;}
   }
+  .tag-cols{display:flex;gap:32px;flex-wrap:wrap;}
+  .tag-col{flex:1;min-width:160px;}
   .pf-tags{margin-top:4px;}
   .pr-links{display:flex;gap:14px;margin-top:8px;}
   .pr-links a{font-size:13px;font-weight:600;color:var(--blue);cursor:pointer;}

@@ -304,31 +304,34 @@ export default async function ProfilePage({
           </>
         )}
 
-      {user.interests.length > 0 && (
-        <>
-          <div className="sec">
-            <h2>관심 분야</h2>
-          </div>
-          <div className="chips pf-tags">
-            {user.interests.map((it) => (
-              <Chip key={it}>{it}</Chip>
-            ))}
-          </div>
-        </>
-      )}
-
-      {topTags.length > 0 && (
-        <>
-          <div className="sec">
-            <h2>자주 보는 태그</h2>
-            <span className="more">북마크 기준</span>
-          </div>
-          <div className="chips pf-tags">
-            {topTags.map(({ tag }) => (
-              <Chip key={tag}>#{tag}</Chip>
-            ))}
-          </div>
-        </>
+      {(user.interests.length > 0 || topTags.length > 0) && (
+        <div className="tag-cols">
+          {user.interests.length > 0 && (
+            <div className="tag-col">
+              <div className="sec">
+                <h2>관심 분야</h2>
+              </div>
+              <div className="chips pf-tags">
+                {user.interests.map((it) => (
+                  <Chip key={it}>{it}</Chip>
+                ))}
+              </div>
+            </div>
+          )}
+          {topTags.length > 0 && (
+            <div className="tag-col">
+              <div className="sec">
+                <h2>자주 보는 태그</h2>
+                <span className="more">북마크 기준</span>
+              </div>
+              <div className="chips pf-tags">
+                {topTags.map(({ tag }) => (
+                  <Chip key={tag}>#{tag}</Chip>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       <div className="sec">
