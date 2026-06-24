@@ -21,6 +21,7 @@ export default async function AccountPage() {
   if (!userId) {
     return (
       <div className="wrap">
+        {/* 비로그인 로그인 화면 — 모바일 하단 탭바는 NavBar 가 라우트 기준으로 숨김 */}
         <section className="view auth on">
           <div className="auth-card">
             <div className="auth-logo">

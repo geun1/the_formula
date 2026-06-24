@@ -95,6 +95,8 @@ export default async function ProfilePage({
             <img
               src={user.image}
               alt=""
+              loading="lazy"
+              decoding="async"
               style={{
                 width: "100%",
                 height: "100%",

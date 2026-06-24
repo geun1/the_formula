@@ -63,6 +63,13 @@ export function NavBar({ user }: { user: NavUser }) {
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
 
+  // 하단 탭바를 숨길 라우트(SSR 단계에서 결정 — FOUC 없음):
+  //  · 채팅 스레드(/chat/[id]) — sticky 입력창이 탭바에 가리는 문제 해결(뒤로가기로 내비 복귀)
+  //  · 비로그인 로그인 화면(/account) — 인증 카드 위에 탭바가 떠 폼을 가리는 문제 해결
+  const hideTabbar =
+    (pathname.startsWith("/chat/") && pathname !== "/chat") ||
+    (pathname === "/account" && !user);
+
   const submitSearch = (e: React.FormEvent) => {
     e.preventDefault();
     const term = q.trim();
@@ -104,6 +111,15 @@ export function NavBar({ user }: { user: NavUser }) {
           </div>
 
           <div className="topbar-right">
+            {/* 모바일 전용 검색 진입(데스크탑은 헤더 .nav-search 가 담당, CSS 로 숨김) */}
+            <button
+              type="button"
+              className="nav-search-m"
+              aria-label="검색"
+              onClick={() => router.push("/search")}
+            >
+              <SearchIcon />
+            </button>
             {user ? (
               <>
                 <Link href="/chat" className="icon-btn" aria-label="채팅">
@@ -129,18 +145,20 @@ export function NavBar({ user }: { user: NavUser }) {
         </div>
       </header>
 
-      {/* 모바일 하단 탭바 (reference.css .tabbar) */}
-      <nav className="tabbar" aria-label="모바일 내비게이션">
-        {LINKS.map((link) => (
-          <Link
-            key={link.href}
-            href={link.href}
-            className={`tab${isActive(link.href) ? " on" : ""}`}
-          >
-            <span className="tl">{link.label}</span>
-          </Link>
-        ))}
-      </nav>
+      {/* 모바일 하단 탭바 (reference.css .tabbar) — 채팅 스레드·로그인 화면에선 숨김 */}
+      {!hideTabbar && (
+        <nav className="tabbar" aria-label="모바일 내비게이션">
+          {LINKS.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className={`tab${isActive(link.href) ? " on" : ""}`}
+            >
+              <span className="tl">{link.label}</span>
+            </Link>
+          ))}
+        </nav>
+      )}
     </>
   );
 }

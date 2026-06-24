@@ -8,7 +8,7 @@ import {
   CoverGradient,
   Markdown,
 } from "@/components/ui";
-import { sanitizeRichHtml } from "@/lib/sanitize";
+import { renderFreeBody } from "@/lib/sanitize";
 import {
   getArchiveDetail,
   getAuthorOtherPosts,
@@ -93,6 +93,8 @@ function SourceArticleCard({ article }: { article: FeedPost }) {
           <img
             src={article.cardnews.coverImageUrl}
             alt=""
+            loading="lazy"
+            decoding="async"
             style={{ width: "100%", height: "100%", objectFit: "cover" }}
           />
         ) : (
@@ -270,7 +272,7 @@ export default async function FormulaDetailPage({ params }: PageProps) {
               <div
                 className="md free-body"
                 dangerouslySetInnerHTML={{
-                  __html: sanitizeRichHtml(post.formula.content),
+                  __html: renderFreeBody(post.formula.content),
                 }}
               />
             </div>

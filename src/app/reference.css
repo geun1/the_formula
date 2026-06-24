@@ -70,6 +70,7 @@
   .topbar:not(.scrolled) .btn-text{color:rgba(255,255,255,.9);}
   .topbar:not(.scrolled) .btn-join{background:rgba(255,255,255,.2);color:#fff;}
   .topbar:not(.scrolled) .icon-btn{color:rgba(255,255,255,.85);}
+  .topbar:not(.scrolled) .nav-search-m{color:rgba(255,255,255,.85);}
   .topbar:not(.scrolled) .nav button:hover{background:rgba(255,255,255,.12);color:#fff;}
   .topbar:not(.scrolled) .nav button.on{background:rgba(255,255,255,.1);}
   .topbar:not(.scrolled) .btn-text:hover{background:rgba(255,255,255,.12);}
@@ -707,3 +708,67 @@
   .trend-label{font-size:12px;color:rgba(255,255,255,.45);font-weight:500;letter-spacing:.03em;flex-shrink:0;}
   .trend-chip{font-size:13px;font-weight:600;color:rgba(255,255,255,.75);background:none;border-radius:0;padding:5px 4px;cursor:pointer;transition:color .15s;}
   .trend-chip:hover{color:#fff;}
+
+  /* ===========================================================================
+     모바일 반응형 보강 — reference-owned 클래스(폼 16px·터치타겟·safe-area·바텀시트).
+     소스 순서상 파일 최후미라, 위에서 정의된 규칙을 의도적으로 override 한다.
+     globals.css 보다도 나중에 로드되므로 공유 클래스는 여기서 처리.
+     =========================================================================== */
+  /* 모바일 헤더 검색 진입 버튼 — 데스크탑에선 .nav-search 가 검색을 담당하므로 숨김 */
+  .nav-search-m{display:none;}
+  /* 채팅 스레드 헤더 — 전역 topbar(데스크탑 60px) 높이만큼 내려 sticky 겹침 방지 */
+  .chat-thread-head{top:60px;}
+  /* 채팅 스레드 컨테이너 — 탭바를 NavBar 가 라우트 기준으로 숨기므로(모바일) 하단 여백 타이트.
+     데스크탑은 .wrap 의 큰 하단 padding 대신 24px 로(인라인 제거분 대체). */
+  .chat-thread-wrap{padding-bottom:24px;}
+  @media (max-width:768px){
+    /* iOS 포커스 자동 줌 방지 — 모든 폼 컨트롤 16px (데스크탑 디자인은 위 규칙 유지) */
+    .title-input,.form-select,.date-input,.auth-input,.ci-field,
+    .nav-search-bar input,.apc-search,.sort-select,.hero-search input{font-size:16px;}
+    .sort-select{padding-top:10px;padding-bottom:10px;}
+    /* 모바일 헤더 검색 아이콘 버튼 노출 (44px 터치타겟) */
+    .nav-search-m{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:999px;color:inherit;}
+    /* 하단 탭바 — 세로 터치높이 44px 확보 */
+    .tab{padding:8px 0;min-height:44px;justify-content:center;}
+    /* 프로필/멤버 액션 — 풀폭 + 터치타겟 */
+    .profile-actions .btn{flex:1;}
+    .dc-heart{width:40px;height:40px;}
+    .dc-follow,.dc-chat{padding-top:11px;padding-bottom:11px;}
+    /* 디렉토리/활동 헤더 — 좁은 폭에서 줄바꿈 */
+    .dir-main-head{flex-wrap:wrap;gap:12px;}
+    /* 모임 상세 지원 액션 — 세로 풀폭(join-cta 동일 패턴) */
+    .md-apply{flex-direction:column;}
+    .md-apply .btn{width:100%;}
+    /* 작성 폼 액션 버튼 — 가로 균등 풀폭 */
+    .write-actions .btn{flex:1;}
+    /* 상세 하단 sticky 액션바 — 불투명 배경 + 풀폭 버튼(스크롤 시 본문 비침 방지) */
+    .d-actions{flex-wrap:wrap;background:var(--bg);padding:10px 0;box-shadow:0 -1px 0 var(--border);}
+    .d-actions>.btn{flex:1 1 auto;min-width:0;}
+    /* 히어로 제목 — 한글 단어 단위 줄바꿈 */
+    .jh-title{word-break:keep-all;}
+    /* 아카이브 선택 모달 → 바텀시트(소프트 키보드 가림 회피) */
+    .arc-picker{align-items:flex-end;}
+    .apc-box{width:100%;max-width:100%;max-height:85dvh;border-radius:18px 18px 0 0;}
+    /* 하단 고정 토스트 — 홈바 safe-area 반영 */
+    .toast{bottom:calc(90px + env(safe-area-inset-bottom));}
+    /* 콘텐츠 하단 클리어런스 — 탭바/홈바에 마지막 콘텐츠가 닿지 않게 */
+    .wrap{padding-bottom:calc(100px + env(safe-area-inset-bottom));}
+    .site-footer{padding-bottom:calc(120px + env(safe-area-inset-bottom));}
+    /* 채팅 스레드 화면 — 탭바를 NavBar 가 숨기므로(입력창 가림 해결), 탭바용 100px 여백 제거.
+       입력창 아래 빈 공간 방지 + 홈바 safe-area 만 반영. */
+    .chat-thread-wrap{padding-bottom:calc(12px + env(safe-area-inset-bottom));}
+    /* 채팅 스레드 헤더 — 전역 topbar(모바일 54px) 아래에 sticky */
+    .chat-thread-head{top:54px;}
+  }
+  @media (max-width:480px){
+    /* 받은함 역할 라벨 — 이름과 한 ellipsis 로 묶여 둘 다 잘리므로 숨김 */
+    .ci-role-inline{display:none;}
+    /* 모임 상세 정보 그리드 1열 */
+    .md-info-grid{grid-template-columns:1fr;}
+    /* 1열 피드 카드 커버 — 과하게 납작하지 않게 높이 확대 */
+    .fcover{height:150px;}
+    /* 히어로 트렌드 칩 — 터치타겟/간격 확대 */
+    .trend-chip{padding:8px 6px;}
+    .hero-trends{gap:10px 12px;}
+    .jh-title{font-size:21px;}
+  }

@@ -148,6 +148,7 @@ export default async function ChatInboxPage({ searchParams }: PageProps) {
                       {c.partner.name}
                       {c.partner.role && (
                         <span
+                          className="ci-role-inline"
                           style={{
                             marginLeft: 6,
                             fontSize: 12,

@@ -60,6 +60,8 @@ export function Avatar({ id, name, src, variant, size, className }: AvatarProps)
         <img
           src={src}
           alt={name ? `${name} 아바타` : "아바타"}
+          loading="lazy"
+          decoding="async"
           style={{
             width: "100%",
             height: "100%",

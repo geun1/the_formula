@@ -50,23 +50,23 @@ export default async function ChatThreadPage({ params }: PageProps) {
   const { partner } = thread.conversation;
 
   return (
-    <div className="wrap" style={{ maxWidth: 680, paddingBottom: 24 }}>
+    <div className="wrap chat-thread-wrap" style={{ maxWidth: 680 }}>
       <div
         style={{
           display: "flex",
           flexDirection: "column",
-          minHeight: "calc(100dvh - 200px)",
+          minHeight: "calc(100dvh - 120px)",
           background: "var(--white)",
           borderRadius: "var(--r)",
           boxShadow: "var(--shadow)",
           overflow: "hidden",
         }}
       >
-        {/* 스레드 헤더 */}
+        {/* 스레드 헤더 — sticky top 은 .chat-thread-head 가 topbar 높이만큼 내려줌 */}
         <header
+          className="chat-thread-head"
           style={{
             position: "sticky",
-            top: 0,
             zIndex: 10,
             display: "flex",
             alignItems: "center",

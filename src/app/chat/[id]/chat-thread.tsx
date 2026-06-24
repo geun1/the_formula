@@ -234,7 +234,8 @@ export function ChatThread({
               border: "1px solid var(--border)",
               background: "var(--bg)",
               padding: "10px 16px",
-              fontSize: 14,
+              // 16px 미만이면 iOS Safari 가 포커스 시 페이지를 자동 확대하므로 16 고정.
+              fontSize: 16,
               outline: "none",
               fontFamily: "var(--font)",
               color: "var(--t1)",

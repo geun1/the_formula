@@ -143,6 +143,8 @@ export default async function ArticleDetailPage({ params }: PageProps) {
               src={post.cardnews.coverImageUrl}
               alt=""
               className="d-cover"
+              loading="lazy"
+              decoding="async"
             />
           )}
 

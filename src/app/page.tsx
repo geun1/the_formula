@@ -140,6 +140,7 @@ function FeedCard({ post }: { post: FeedPost }) {
             alt=""
             className="fcover-img"
             loading="lazy"
+            decoding="async"
           />
         ) : null}
         <span className="fcover-cat">{categoryLabel(post.category)}</span>
@@ -223,7 +224,7 @@ export default async function HomePage({
             ===================================================================== */}
         <div className="journal-hero">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img className="hero-video" src="/hero-stars.jpg" alt="" />
+          <img className="hero-video" src="/hero-stars.jpg" alt="" fetchPriority="high" decoding="async" />
           <div className="hero-overlay" />
           <div className="jh-text">
             <div className="jh-date">{heroDate()}</div>
