@@ -192,7 +192,7 @@ const personaCommentsSchema = z.object({
 });
 
 const PERSONA_GUIDE = AGENT_PERSONAS.map(
-  (p) => `- ${p.id} (${p.name}): ${p.lens}`,
+  (p) => `- ${p.id} — ${p.name}(${p.role}): ${p.lens}`,
 ).join("\n");
 
 /**
@@ -211,13 +211,15 @@ export async function generatePersonaComments(input: {
       schema: personaCommentsSchema,
       maxOutputTokens: 2048,
       system:
-        "당신은 커뮤니티 토론을 여는 에디터입니다. 아래 '원형 페르소나'마다 " +
-        "서로 다른 관점의 댓글을 하나씩 만듭니다. 이들은 실존 인물이 아니라 관점의 의인화예요. " +
-        "각 댓글은 (1) 글의 구체적 내용을 근거로 하고(창작 금지), (2) 해요체로 2~4문장, " +
-        "(3) 반드시 사람에게 답을 청하는 열린 질문으로 끝나 멤버의 댓글을 유도합니다.\n" +
-        `페르소나:\n${PERSONA_GUIDE}`,
+        "당신은 커뮤니티 토론을 여는 에디터입니다. 아래 원형 페르소나(개발/비개발 직군 혼합) 중 " +
+        "이 글과 가장 관련 있는 **2~4명**을 골라, 각자 관점의 댓글을 하나씩 만듭니다. " +
+        "이들은 실존 인물이 아니라 관점의 의인화이고, 각자 고유 영어 닉네임을 씁니다. " +
+        "기술 깊은 글이면 기술 페르소나(Ada/Theo/Max)가, 디자인·사용자·시장·도입 얘기가 있으면 " +
+        "비개발 페르소나(Dana/Leo)도 참여하세요. 각 댓글은 (1) 글의 구체적 내용을 근거로 하고(창작 금지), " +
+        "(2) 해요체로 2~4문장, (3) 반드시 사람에게 답을 청하는 열린 질문으로 끝나 멤버의 댓글을 유도합니다.\n" +
+        `페르소나(personaId — 닉네임(직군): 렌즈):\n${PERSONA_GUIDE}`,
       prompt:
-        `다음 글에 대해 각 페르소나의 댓글을 작성해줘.\n\n제목: ${originalTitle}\n\n` +
+        `다음 글에 대해, 관련 있는 페르소나 2~4명을 골라 각자 댓글을 작성해줘.\n\n제목: ${originalTitle}\n\n` +
         `본문:\n${rawContent.slice(0, 12000)}`,
     });
     // 스키마상 personaId 는 유효하지만, 중복 페르소나는 첫 항목만 채택.
