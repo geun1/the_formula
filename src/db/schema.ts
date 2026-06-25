@@ -382,7 +382,24 @@ export const rawArticles = pgTable(
   ],
 );
 
+// ---- 크롤 소스 상태: 조건부 GET(etag/last-modified) + 소스 헬스 추적 ----
+// 크롤러는 DB-free(순수 함수)라 이 상태를 직접 읽지 않는다. cron 이 매 실행마다
+// 여기서 conditional 헤더를 읽어 crawlSources 에 넘기고, 결과를 다시 적재한다.
+export const crawlSourceState = pgTable("crawl_source_state", {
+  name: text("name").primaryKey(), // Source.name
+  url: text("url"),
+  etag: text("etag"), // 다음 요청의 If-None-Match
+  lastModified: text("lastModified"), // 다음 요청의 If-Modified-Since
+  lastStatus: integer("lastStatus"), // 마지막 HTTP 상태(200/304/...)
+  lastSuccessAt: timestamp("lastSuccessAt", { mode: "date" }),
+  lastItemDate: timestamp("lastItemDate", { mode: "date" }), // 최신 항목 발행일(stale 감지)
+  consecutiveFailures: integer("consecutiveFailures").notNull().default(0),
+  lastError: text("lastError"),
+  updatedAt: timestamp("updatedAt", { mode: "date" }).notNull().defaultNow(),
+});
+
 export type DbRawArticle = typeof rawArticles.$inferSelect;
+export type DbCrawlSourceState = typeof crawlSourceState.$inferSelect;
 export type DbUser = typeof users.$inferSelect;
 export type DbPost = typeof posts.$inferSelect;
 export type DbInteraction = typeof interactions.$inferSelect;
