@@ -11,6 +11,7 @@ import { google } from "@ai-sdk/google";
 import { z } from "zod";
 import type { CardNews, Category } from "@/lib/contract";
 import { CATEGORIES, categories } from "@/lib/contract";
+import { getSourceKind } from "@/lib/sources";
 
 /** 기본 모델 — Gemini 3.5 Flash. 환경변수 CARDNEWS_MODEL 로 오버라이드 가능. */
 const CARDNEWS_MODEL = process.env.CARDNEWS_MODEL ?? "gemini-3.5-flash";
@@ -86,24 +87,49 @@ export async function enrichArticle(
     model = CARDNEWS_MODEL,
   } = input;
 
+  // 해외 테크 블로그(techblog)는 저작권상 전문 번역 대신 "발췌 + 논평 요약".
+  // 그 외 소스는 기존 동작(충실 재구성) 유지. 규칙: docs/commentary-guide.md.
+  const commentary = getSourceKind(sourceName ?? "") === "techblog";
+
+  const system = commentary
+    ? "당신은 해외 테크 블로그를 한국 실무자에게 소개하는 AI 에디터입니다. " +
+      "저작권 보호를 위해 원문을 전문 번역·복제하지 않습니다. 대신 핵심을 한국어로 " +
+      "**재서술(논평)**하고, 꼭 필요한 문장만 짧게 발췌·번역해 인용하며, 실무 관점의 해석과 " +
+      "한계를 덧붙입니다. 원문이 본문의 주(主)가 되면 안 되고, 전체 내용은 원문 링크로 유도합니다. " +
+      `카테고리는 다음 중 하나로 정확히 분류하세요: ${CATEGORY_GUIDE}.`
+    : "당신은 해외/국내 AI·AX 아티클을 한국 실무자용으로 옮기는 AI 에디터입니다. " +
+      "요약가가 아니라 **번역·재구성 에디터**입니다 — 원문의 내용을 압축해 버리지 말고, " +
+      "원문이 담은 핵심 정보·맥락·수치·예시를 거의 빠짐없이 한국어로 충실히 옮깁니다. " +
+      "다만 자연스러운 한국어 해요체로 읽기 좋게 다듬고, 소제목으로 구조화합니다. " +
+      `카테고리는 다음 중 하나로 정확히 분류하세요: ${CATEGORY_GUIDE}.`;
+
+  const prompt = commentary
+    ? `다음 해외 테크 블로그 글을 한국 실무자용 '논평 카드'로 작성해줘. ` +
+      `전문 번역이 아니라 발췌+논평이야. body 는 아래 마크다운 구조로:\n` +
+      `- '## 한눈에' — 3~4줄 핵심\n` +
+      `- '## 무엇을 다루나' — 글 내용을 네 한국어로 재서술(요약). 원문 문단 통째 번역 금지. ` +
+      `핵심 문장만 1~3개 '> ' 인용으로 짧게 번역. 수치 비교는 표/차트(\`\`\`chart) 활용(원문 수치만)\n` +
+      `- '## 왜 중요한가 / 실무 시사점' — 한국 개발·AX 실무자 관점 해석\n` +
+      `- '## 한계 · 생각할 점' — 비판적 시각(있으면)\n` +
+      `- 마지막 줄: '> 전문은 원문 출처에서 확인하세요.'\n` +
+      `원문에 없는 내용 창작 금지. summary 는 2~3문장 티저, 해요체.\n\n` +
+      `제목: ${originalTitle}\n` +
+      (sourceName ? `출처: ${sourceName}\n` : "") +
+      `\n본문:\n${rawContent.slice(0, 30000)}`
+    : `다음 아티클을 한국어로 충실히 재구성해줘(요약 아님 — 원문 내용을 거의 유지). ` +
+      `summary 는 짧은 티저, body 는 원문 분량에 맞춰 충분히 길고 자세하게.\n\n` +
+      `제목: ${originalTitle}\n` +
+      (sourceName ? `출처: ${sourceName}\n` : "") +
+      `\n본문:\n${rawContent.slice(0, 30000)}`;
+
   try {
     const { object } = await generateObject({
       model: google(model),
       schema: cardNewsTextSchema,
       // 본문이 길어 출력이 잘리지 않도록 충분히 크게(표·차트 포함).
       maxOutputTokens: 16384,
-      system:
-        "당신은 해외/국내 AI·AX 아티클을 한국 실무자용으로 옮기는 AI 에디터입니다. " +
-        "요약가가 아니라 **번역·재구성 에디터**입니다 — 원문의 내용을 압축해 버리지 말고, " +
-        "원문이 담은 핵심 정보·맥락·수치·예시를 거의 빠짐없이 한국어로 충실히 옮깁니다. " +
-        "다만 자연스러운 한국어 해요체로 읽기 좋게 다듬고, 소제목으로 구조화합니다. " +
-        `카테고리는 다음 중 하나로 정확히 분류하세요: ${CATEGORY_GUIDE}.`,
-      prompt:
-        `다음 아티클을 한국어로 충실히 재구성해줘(요약 아님 — 원문 내용을 거의 유지). ` +
-        `summary 는 짧은 티저, body 는 원문 분량에 맞춰 충분히 길고 자세하게.\n\n` +
-        `제목: ${originalTitle}\n` +
-        (sourceName ? `출처: ${sourceName}\n` : "") +
-        `\n본문:\n${rawContent.slice(0, 30000)}`,
+      system,
+      prompt,
     });
 
     return {
