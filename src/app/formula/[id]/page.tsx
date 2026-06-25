@@ -18,6 +18,7 @@ import {
 } from "@/lib/queries";
 import { type Difficulty } from "@/lib/contract";
 import { fmtCount } from "@/lib/ref-style";
+import { ogImage, SITE_NAME } from "@/lib/site";
 import { FormulaActions } from "./formula-actions";
 import { DetailComments } from "./detail-comments";
 import { AuthorActions } from "./author-actions";
@@ -39,14 +40,37 @@ export async function generateMetadata({
     return { title: "아카이브를 찾을 수 없어요 · The Formula" };
   }
   const { post } = detail;
-  const desc =
+  const title = `${post.title} · The Formula`;
+  const description = (
     post.oneLiner ??
     post.formula?.problem ??
     post.cardnews?.summary ??
-    "AX 실전 공식";
+    "AX 실전 공식"
+  ).slice(0, 200);
+  const url = `/formula/${post.id}`;
+  const image = ogImage(post.cardnews?.coverImageUrl);
+  const published = post.createdAt ?? undefined;
+
   return {
-    title: `${post.title} · The Formula`,
-    description: desc.slice(0, 150),
+    title,
+    description,
+    alternates: { canonical: url },
+    openGraph: {
+      type: "article",
+      title: post.title,
+      description,
+      url,
+      siteName: SITE_NAME,
+      locale: "ko_KR",
+      images: [{ url: image, alt: post.title }],
+      ...(published ? { publishedTime: published } : {}),
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: post.title,
+      description,
+      images: [image],
+    },
   };
 }
 

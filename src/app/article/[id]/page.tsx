@@ -10,6 +10,7 @@ import {
   currentUserId,
 } from "@/lib/queries";
 import { fmtCount } from "@/lib/ref-style";
+import { ogImage, SITE_NAME } from "@/lib/site";
 import { ArticleActions } from "./article-actions";
 import { DetailComments } from "./detail-comments";
 
@@ -24,11 +25,36 @@ export async function generateMetadata({
     return { title: "아티클을 찾을 수 없어요 · The Formula" };
   }
   const { post } = detail;
-  const desc =
-    post.cardnews?.summary ?? post.oneLiner ?? "AI 큐레이터가 정리한 아티클";
+  const title = `${post.title} · The Formula`;
+  const description = (
+    post.cardnews?.summary ??
+    post.oneLiner ??
+    "AI 큐레이터가 정리한 아티클"
+  ).slice(0, 200);
+  const url = `/article/${post.id}`;
+  const image = ogImage(post.cardnews?.coverImageUrl);
+  const published = post.collectedAt ?? post.createdAt ?? undefined;
+
   return {
-    title: `${post.title} · The Formula`,
-    description: desc.slice(0, 150),
+    title,
+    description,
+    alternates: { canonical: url },
+    openGraph: {
+      type: "article",
+      title: post.title,
+      description,
+      url,
+      siteName: SITE_NAME,
+      locale: "ko_KR",
+      images: [{ url: image, alt: post.title }],
+      ...(published ? { publishedTime: published } : {}),
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: post.title,
+      description,
+      images: [image],
+    },
   };
 }
 
