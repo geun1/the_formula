@@ -10,7 +10,7 @@ import { generateObject } from "ai";
 import { google } from "@ai-sdk/google";
 import { z } from "zod";
 import type { CardNews, Category } from "@/lib/contract";
-import { CATEGORIES, categories } from "@/lib/contract";
+import { CATEGORIES, categories, AGENT_PERSONAS } from "@/lib/contract";
 import { getSourceKind } from "@/lib/sources";
 
 /** 기본 모델 — Gemini 3.5 Flash. 환경변수 CARDNEWS_MODEL 로 오버라이드 가능. */
@@ -153,6 +153,80 @@ export async function enrichArticle(
       category: fallbackCategory,
       tags: cardnews.keywords.slice(0, 5),
     };
+  }
+}
+
+// =============================================================================
+// AI 페르소나 다관점 댓글 — 수집 글에 토론 마중물 자동 생성
+// =============================================================================
+// 실존 인물 사칭이 아닌 원형(archetype) 페르소나. 본문 근거로만 작성하고 각 댓글은
+// 사람에게 답을 던지는 질문으로 끝나 멤버 참여를 유도한다. 규칙: docs/persona-comments-guide.md.
+// 생성 실패는 [] 로 graceful — 발행을 막지 않는다.
+
+export interface PersonaComment {
+  personaId: string;
+  body: string;
+}
+
+const personaIds = AGENT_PERSONAS.map((p) => p.id) as [string, ...string[]];
+const personaCommentsSchema = z.object({
+  comments: z
+    .array(
+      z.object({
+        personaId: z.enum(personaIds),
+        body: z
+          .string()
+          .min(20)
+          .max(600)
+          .describe(
+            "해당 페르소나 관점의 한국어 댓글(해요체). 2~4문장. 글의 구체 지점을 짚고 " +
+              "마지막은 사람에게 던지는 열린 질문으로 끝낼 것. 본문에 없는 사실 창작 금지.",
+          ),
+      }),
+    )
+    .max(AGENT_PERSONAS.length),
+});
+
+const PERSONA_GUIDE = AGENT_PERSONAS.map(
+  (p) => `- ${p.id} (${p.name}): ${p.lens}`,
+).join("\n");
+
+/**
+ * 수집 글 → 원형 페르소나별 다관점 댓글. 각 페르소나 1개씩.
+ * AI 호출 실패 시 [] (발행 비차단).
+ */
+export async function generatePersonaComments(input: {
+  originalTitle: string;
+  rawContent: string;
+  model?: string;
+}): Promise<PersonaComment[]> {
+  const { originalTitle, rawContent, model = CARDNEWS_MODEL } = input;
+  try {
+    const { object } = await generateObject({
+      model: google(model),
+      schema: personaCommentsSchema,
+      maxOutputTokens: 2048,
+      system:
+        "당신은 커뮤니티 토론을 여는 에디터입니다. 아래 '원형 페르소나'마다 " +
+        "서로 다른 관점의 댓글을 하나씩 만듭니다. 이들은 실존 인물이 아니라 관점의 의인화예요. " +
+        "각 댓글은 (1) 글의 구체적 내용을 근거로 하고(창작 금지), (2) 해요체로 2~4문장, " +
+        "(3) 반드시 사람에게 답을 청하는 열린 질문으로 끝나 멤버의 댓글을 유도합니다.\n" +
+        `페르소나:\n${PERSONA_GUIDE}`,
+      prompt:
+        `다음 글에 대해 각 페르소나의 댓글을 작성해줘.\n\n제목: ${originalTitle}\n\n` +
+        `본문:\n${rawContent.slice(0, 12000)}`,
+    });
+    // 스키마상 personaId 는 유효하지만, 중복 페르소나는 첫 항목만 채택.
+    const seen = new Set<string>();
+    return object.comments.filter((c) =>
+      seen.has(c.personaId) ? false : (seen.add(c.personaId), true),
+    );
+  } catch (err) {
+    console.warn(
+      "[persona] 댓글 생성 실패(건너뜀):",
+      err instanceof Error ? err.message : err,
+    );
+    return [];
   }
 }
 

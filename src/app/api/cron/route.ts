@@ -18,7 +18,7 @@ import {
   failArticle,
   getQueueStats,
 } from "@/lib/ingest";
-import { enrichArticle } from "@/lib/cardnews";
+import { enrichArticle, generatePersonaComments } from "@/lib/cardnews";
 import { loadSourceConditionals, recordCrawlOutcomes } from "@/lib/source-state";
 
 export const dynamic = "force-dynamic";
@@ -98,11 +98,16 @@ export async function GET(req: NextRequest) {
             sourceName: raw.sourceName,
             fallbackCategory: raw.category ?? "ai",
           });
-          const pub = await publishArticle(raw.id, {
-            cardnews: enr.cardnews,
-            category: enr.category,
-            tags: enr.tags,
+          // 다관점 토론 마중물(원형 페르소나) — 실패해도 [] 로 발행 비차단.
+          const persona = await generatePersonaComments({
+            originalTitle: raw.originalTitle,
+            rawContent: raw.rawContent,
           });
+          const pub = await publishArticle(
+            raw.id,
+            { cardnews: enr.cardnews, category: enr.category, tags: enr.tags },
+            persona,
+          );
           if (pub.ok) {
             published.push({ id: raw.id, postId: pub.postId, title: raw.originalTitle });
           } else {

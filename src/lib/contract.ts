@@ -286,3 +286,41 @@ export function isCategory(v: unknown): v is Category {
 
 /** agent(크롤러/카드뉴스) 글의 작성자 — 시드 유저로 존재 */
 export const AGENT_CURATOR_ID = "agent-curator";
+
+/**
+ * AI 토론 페르소나 — 수집 글에 다관점 댓글을 자동 생성하는 원형(archetype) 화자.
+ * 실존 인물 사칭이 아니라 "관점"의 의인화. 각 페르소나는 isAgent user 행으로 존재하고,
+ * 댓글은 interaction(type="comment", userId=persona.id)로 적재된다. 규칙: docs/persona-comments-guide.md.
+ */
+export interface AgentPersona {
+  id: string;
+  /** 표시명 */
+  name: string;
+  /** role 라벨(프로필/배지용) */
+  role: string;
+  /** 이 페르소나가 글을 보는 렌즈(생성 프롬프트에 주입) */
+  lens: string;
+}
+
+export const AGENT_PERSONAS: AgentPersona[] = [
+  {
+    id: "persona-optimist",
+    name: "도입 낙관파",
+    role: "AI 페르소나",
+    lens: "이 글에서 우리 실무에 바로 적용할 기회를 찾고, 시도를 부추깁니다.",
+  },
+  {
+    id: "persona-skeptic",
+    name: "회의적 연구자",
+    role: "AI 페르소나",
+    lens: "주장의 근거·평가의 한계·반례를 날카롭게 따집니다.",
+  },
+  {
+    id: "persona-pragmatist",
+    name: "운영 현실주의자",
+    role: "AI 페르소나",
+    lens: "비용·운영 부담·실제 규모에서의 ROI 관점에서 봅니다.",
+  },
+];
+
+export type AgentPersonaId = (typeof AGENT_PERSONAS)[number]["id"];
