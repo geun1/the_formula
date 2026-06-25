@@ -16,6 +16,10 @@ import type { ArticleInput } from "@/lib/ingest";
 const FULLTEXT_THRESHOLD = 1500;
 // 가공에 넘길 본문 최대 길이(Gemini 3.5 Flash 는 대용량 컨텍스트 — 넉넉히).
 const MAX_RAW = 40000;
+// 관련성 판정에 쓸 리드(본문 앞부분) 길이. 장문 엔지니어링 블로그(2만자+)는
+// 본문 깊숙이 "automation/agents" 같은 단어가 우연히 섞여 오탐이 나므로,
+// "글이 실제로 AI 를 다루는가"를 제목 + 리드에서만 판정한다.
+const RELEVANCE_LEAD = 700;
 
 const UA = "Mozilla/5.0 (compatible; TheFormulaBot/1.0; +https://the-formula-silk.vercel.app)";
 
@@ -84,7 +88,7 @@ function ogImage(html: string, baseUrl: string): string | null {
 // email/again/available 같은 단어에 오탐하지 않음. 한국어/긴 영어는 substring.
 // ASCII 약어 경계 매칭(\b 는 ASCII 토큰에 정확).
 const LATIN_RE =
-  /\b(a\.?i|ax|llm|gpt|chatgpt|claude|gemini|anthropic|openai|deepmind|agentic|agents?|copilot|machine\s+learning|deep\s+learning|generative|transformers?|embeddings?|fine[- ]?tun\w*|reasoning|neural|vectors?|rag|mcp|automation|prompts?)\b/i;
+  /\b(a\.?i|ax|ml|llm|gpt|chatgpt|claude|gemini|anthropic|openai|deepmind|agentic|agents?|copilot|machine\s+learning|deep\s+learning|generative|transformers?|embeddings?|fine[- ]?tun\w*|reasoning|neural|vectors?|rag|mcp|automation|prompts?|recommend\w*|personaliz\w*|ranking|inference|classif\w*|diffusion)\b/i;
 // 한국어 등은 부분 문자열로 충분(경계 이슈 없음).
 const KO_TERMS = [
   "인공지능", "머신러닝", "딥러닝", "에이전트", "에이전틱", "프롬프트", "생성형",
@@ -298,7 +302,9 @@ export async function crawlSources(opts: CrawlOptions = {}): Promise<CrawlResult
       let body = htmlToText(rawHtml);
       if (body.length < 40) body = it.contentSnippet?.trim() || title;
 
-      if (filterRelevance && !isRelevant(`${title} ${body}`)) continue;
+      // 제목 + 리드만으로 관련성 판정(장문 본문의 우연 매칭 오탐 방지).
+      if (filterRelevance && !isRelevant(`${title}\n${body.slice(0, RELEVANCE_LEAD)}`))
+        continue;
 
       seenUrls.add(link);
       candidates.push({ s, link, title, rssBody: body, rssImg: rssImage(it), dateStr });
