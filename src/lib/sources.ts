@@ -42,4 +42,10 @@ export const SOURCES: Source[] = [
   { name: "VentureBeat AI", url: "https://venturebeat.com/category/ai/feed/", kind: "blog", category: "insight" },
   { name: "TechCrunch AI", url: "https://techcrunch.com/category/artificial-intelligence/feed/", kind: "blog", category: "insight" },
   { name: "Irrational Exuberance", url: "https://lethain.com/feeds/", kind: "blog", category: "pm" },
+
+  // ── 해외 테크 기업 엔지니어링 블로그 ───────────────────────────────
+  // 일반 엔지니어링 글이 다수라 AI 관련성 필터를 거쳐 AI/ML 글만 큐에 적재됨.
+  { name: "Netflix Tech Blog", url: "https://netflixtechblog.com/feed", kind: "blog", category: "dev" },
+  { name: "Pinterest Engineering", url: "https://medium.com/feed/pinterest-engineering", kind: "blog", category: "dev" },
+  { name: "Meta Engineering", url: "https://engineering.fb.com/feed/", kind: "blog", category: "dev" },
 ];
