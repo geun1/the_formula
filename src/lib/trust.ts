@@ -10,32 +10,19 @@ import type { ActivityStats, Tier } from "./contract";
 
 export const TRUST_BASE = 0;
 export const TRUST_MAX = 100;
-export const SATURATION_K = 60; // 감속상수(클수록 완만)
+export const SATURATION_K = 30; // 감속상수 — K=30이면 완주 1회(raw≈21)→온도 41점 근접
 
-// 신호별 가중치 — 검증 > 인정 > 자가
+// 신호별 가중치 — 모임완주 최고, 검증공식 다음, 저장/하트 보조
 export const WEIGHTS = {
-  // 검증된 기여 (최강, 위조 난이도 최고)
-  verifiedFormula: 6,
-  completion: 5,
-  articleFormula: 2,
-  // 동료 인정 (강, 타인 판단)
-  saveReceived: 1.5,
-  memberSave: 1.5,
-  follower: 0.6,
-  likeReceived: 0.3,
-  commentReceived: 0.4,
-  // 자가 활동 (약 + 캡)
-  unverifiedFormula: 1,
-  selfComment: 0.1,
-  // 정체성 검증 (바닥 + 캡)
-  onboarded: 2,
-  company: 1,
-  externalLink: 2,
+  completion: 20,        // 모임·스터디 완주 (핵심 신뢰 신호)
+  verifiedFormula: 12,   // 검증된 공식
+  formula: 4,            // 공식 작성
+  saveReceived: 0.5,     // 공식 저장받음
+  memberSave: 0.3,       // 받은 하트
+  likesReceived: 0.3,    // 좋아요 받기
+  commentsReceived: 0.5, // 댓글 받기
+  onboarded: 10,         // 프로필 채우기 (기본 온도 10점 부여)
 } as const;
-
-const SELF_FORMULA_CAP = 10; // 미검증 공식 기여 상한
-const SELF_COMMENT_CAP = 5; // 내 댓글 기여 상한(=0.1×50)
-const IDENTITY_CAP = 7; // 정체성 신호 합 상한
 
 export interface TierBand {
   tier: Tier;
@@ -44,14 +31,15 @@ export interface TierBand {
   color: string; // 뱃지/게이지 색
   emoji: string;
   caption: string;
+  condition?: string; // 이 등급 달성을 위한 최소 조건
 }
 
 // 높은 등급부터 (find 가 첫 매칭 반환). 0~100 스케일 기준 경계.
 export const TIER_BANDS: TierBand[] = [
-  { tier: "master", min: 82, label: "AX마스터", color: "#f59e0b", emoji: "👑", caption: "상위 0.1% 신뢰" },
-  { tier: "builder", min: 65, label: "빌더", color: "#fbbf24", emoji: "🛠", caption: "커뮤니티를 만들어가요" },
-  { tier: "activist", min: 38, label: "활동가", color: "#a78bfa", emoji: "🔥", caption: "활발하게 활동해요" },
-  { tier: "contributor", min: 15, label: "기여자", color: "#60a5fa", emoji: "🌿", caption: "꾸준히 참여해요" },
+  { tier: "master", min: 82, label: "AX마스터", color: "#f59e0b", emoji: "👑", caption: "상위 0.1% 신뢰", condition: "완주 5회 + 검증 공식 3개 + 하트 50개" },
+  { tier: "builder", min: 65, label: "빌더", color: "#fbbf24", emoji: "🛠", caption: "커뮤니티를 만들어가요", condition: "완주 3회" },
+  { tier: "activist", min: 38, label: "활동가", color: "#a78bfa", emoji: "🔥", caption: "활발하게 활동해요", condition: "공식 작성 + 완주 1회" },
+  { tier: "contributor", min: 15, label: "기여자", color: "#60a5fa", emoji: "🌿", caption: "꾸준히 참여해요", condition: "공식 작성" },
   { tier: "sprout", min: 0, label: "새싹", color: "#34d399", emoji: "🌱", caption: "이제 막 시작했어요" },
 ];
 
@@ -63,28 +51,38 @@ export interface TrustContribution {
   points: number; // 실제 기여 점수 (캡 반영)
 }
 
-/** stats → 신호별 기여 목록(캡 반영). breakdown/rawScore 공용. */
-function contributionsOf(s: ActivityStats): TrustContribution[] {
-  const verified = s.verifiedFormulaCount ?? 0;
+/** 등급별 최소 조건 충족 여부 — 단계형: 이전 등급 조건이 모두 충족되어야 다음 단계 진입. */
+function meetsMinCondition(s: ActivityStats, tier: Tier): boolean {
   const completed = s.completedActivityCount ?? s.projectCount ?? 0;
-  const unverified = Math.max(0, (s.formulaCount ?? 0) - verified);
-  const identityRaw =
-    (s.onboarded ? WEIGHTS.onboarded : 0) +
-    (s.hasCompany ? WEIGHTS.company : 0) +
-    (s.externalLinkCount ?? 0) * WEIGHTS.externalLink;
+  const hearts = s.memberSaves ?? 0;
+  const verified = s.verifiedFormulaCount ?? 0;
+  const hasFormula = (s.formulaCount ?? 0) >= 1;
+  // 단계형: isContributor → isActivist → isBuilder → isMaster
+  const isContributor = hasFormula;
+  const isActivist    = isContributor && completed >= 1;
+  const isBuilder     = isActivist && completed >= 3;
+  const isMaster      = isBuilder && completed >= 5 && verified >= 3 && hearts >= 50;
+  switch (tier) {
+    case "master":      return isMaster;
+    case "builder":     return isBuilder;
+    case "activist":    return isActivist;
+    case "contributor": return isContributor;
+    default:            return true;
+  }
+}
 
+/** stats → 신호별 기여 목록. breakdown/rawScore 공용. */
+function contributionsOf(s: ActivityStats): TrustContribution[] {
+  const completed = s.completedActivityCount ?? s.projectCount ?? 0;
   return [
-    { key: "verifiedFormula", label: "검증된 공식", count: verified, weight: WEIGHTS.verifiedFormula, points: verified * WEIGHTS.verifiedFormula },
-    { key: "completion", label: "모임/스터디 완주", count: completed, weight: WEIGHTS.completion, points: completed * WEIGHTS.completion },
-    { key: "articleFormula", label: "아티클→공식 변환", count: s.articleFormulaCount ?? 0, weight: WEIGHTS.articleFormula, points: (s.articleFormulaCount ?? 0) * WEIGHTS.articleFormula },
-    { key: "saveReceived", label: "공식 저장받음", count: s.savesReceived ?? 0, weight: WEIGHTS.saveReceived, points: (s.savesReceived ?? 0) * WEIGHTS.saveReceived },
-    { key: "memberSave", label: "멤버 하트", count: s.memberSaves ?? 0, weight: WEIGHTS.memberSave, points: (s.memberSaves ?? 0) * WEIGHTS.memberSave },
-    { key: "follower", label: "팔로워", count: s.followerCount ?? 0, weight: WEIGHTS.follower, points: (s.followerCount ?? 0) * WEIGHTS.follower },
-    { key: "likeReceived", label: "받은 좋아요", count: s.likesReceived ?? 0, weight: WEIGHTS.likeReceived, points: (s.likesReceived ?? 0) * WEIGHTS.likeReceived },
-    { key: "commentReceived", label: "받은 댓글", count: s.commentsReceived ?? 0, weight: WEIGHTS.commentReceived, points: (s.commentsReceived ?? 0) * WEIGHTS.commentReceived },
-    { key: "unverifiedFormula", label: "공식 작성", count: unverified, weight: WEIGHTS.unverifiedFormula, points: Math.min(unverified * WEIGHTS.unverifiedFormula, SELF_FORMULA_CAP) },
-    { key: "selfComment", label: "댓글 작성", count: s.commentCount ?? 0, weight: WEIGHTS.selfComment, points: Math.min((s.commentCount ?? 0) * WEIGHTS.selfComment, SELF_COMMENT_CAP) },
-    { key: "identity", label: "정체성 검증", count: 0, weight: 0, points: Math.min(identityRaw, IDENTITY_CAP) },
+    { key: "completion",       label: "모임·스터디 완주", count: completed,                       weight: WEIGHTS.completion,       points: completed                      * WEIGHTS.completion },
+    { key: "verifiedFormula",  label: "검증된 공식",       count: s.verifiedFormulaCount ?? 0,    weight: WEIGHTS.verifiedFormula,  points: (s.verifiedFormulaCount ?? 0)  * WEIGHTS.verifiedFormula },
+    { key: "formula",          label: "공식 작성",         count: s.formulaCount ?? 0,            weight: WEIGHTS.formula,          points: (s.formulaCount ?? 0)          * WEIGHTS.formula },
+    { key: "saveReceived",     label: "공식 저장받음",     count: s.savesReceived ?? 0,           weight: WEIGHTS.saveReceived,     points: (s.savesReceived ?? 0)         * WEIGHTS.saveReceived },
+    { key: "memberSave",       label: "받은 하트",         count: s.memberSaves ?? 0,             weight: WEIGHTS.memberSave,       points: (s.memberSaves ?? 0)           * WEIGHTS.memberSave },
+    { key: "likesReceived",    label: "좋아요 받기",       count: s.likesReceived ?? 0,           weight: WEIGHTS.likesReceived,    points: (s.likesReceived ?? 0)         * WEIGHTS.likesReceived },
+    { key: "commentsReceived", label: "댓글 받기",         count: s.commentsReceived ?? 0,        weight: WEIGHTS.commentsReceived, points: (s.commentsReceived ?? 0)      * WEIGHTS.commentsReceived },
+    { key: "onboarded",        label: "온보딩 완료",       count: 0,                              weight: WEIGHTS.onboarded,        points: s.onboarded ? WEIGHTS.onboarded : 0 },
   ];
 }
 
@@ -93,11 +91,22 @@ export function rawScore(s: ActivityStats): number {
   return contributionsOf(s).reduce((sum, c) => sum + c.points, 0);
 }
 
-/** stats → 매너온도(0~100). 감속곡선으로 상한 점근. */
+/** stats → 매너온도(0~100). 감속곡선 + 최소 조건 미충족 시 등급 상한으로 잠금. */
 export function scoreFromStats(s: ActivityStats): number {
   const raw = rawScore(s);
   const score = TRUST_MAX * (raw / (raw + SATURATION_K));
-  const clamped = Math.min(Math.max(score, 0), TRUST_MAX);
+
+  // 최소 조건 미충족 등급의 경계값 미만으로 상한 설정 (높은 등급부터 검사)
+  let maxScore = TRUST_MAX;
+  for (const band of TIER_BANDS) {
+    if (!meetsMinCondition(s, band.tier)) {
+      maxScore = band.min - 0.1;
+      break;
+    }
+  }
+
+  const min = 10;
+  const clamped = Math.min(Math.max(score, min), maxScore);
   return Math.round(clamped * 10) / 10;
 }
 
@@ -137,6 +146,30 @@ export function breakdown(s: ActivityStats): TrustBreakdown {
     rawTotal: Math.round(raw * 10) / 10,
     score: scoreFromStats(s),
   };
+}
+
+/** 다음 등급 달성 조건별 충족 여부 */
+export function nextTierChecklist(s: ActivityStats, tier: Tier): { label: string; met: boolean }[] {
+  const completed = s.completedActivityCount ?? s.projectCount ?? 0;
+  const hearts = s.memberSaves ?? 0;
+  const verified = s.verifiedFormulaCount ?? 0;
+  switch (tier) {
+    case "master": return [
+      { label: "완주", met: completed >= 5 },
+      { label: "검증 공식", met: verified >= 3 },
+      { label: "하트", met: hearts >= 50 },
+    ];
+    case "builder": return [
+      { label: "완주", met: completed >= 3 },
+    ];
+    case "activist": return [
+      { label: "완주", met: completed >= 1 },
+    ];
+    case "contributor": return [
+      { label: "공식 작성", met: (s.formulaCount ?? 0) >= 1 },
+    ];
+    default: return [];
+  }
 }
 
 /** 다음 등급까지 — 카드 진행바용. 최고 등급이면 next=null. */

@@ -45,7 +45,7 @@ import type {
   Tier,
   User,
 } from "@/lib/contract";
-import { computeTrust } from "@/lib/trust";
+import { computeTrust, WEIGHTS } from "@/lib/trust";
 
 // ---- 세션 헬퍼 ----
 /** 현재 로그인 유저 id (없으면 null). 서버 전용. */
@@ -577,7 +577,8 @@ async function statsFor(userIds: string[]) {
   type StatsRow = {
     visitCount: number; commentCount: number; formulaCount: number;
     likesReceived: number; projectCount: number;
-    verifiedFormulaCount: number; completedActivityCount: number;
+    verifiedFormulaCount: number; completedActivityCount: number; appliedActivityCount: number;
+    createdActivityCount: number; followingCount: number;
     savesReceived: number; memberSaves: number; followerCount: number;
     commentsReceived: number; onboarded: boolean; hasCompany: boolean;
     externalLinkCount: number;
@@ -689,6 +690,30 @@ async function statsFor(userIds: string[]) {
     .groupBy(applications.userId);
   const completedBy = new Map(completedRows.map((r) => [r.userId, Number(r.c)]));
 
+  // 모임 지원 횟수 (상태 무관)
+  const appliedRows = await db
+    .select({ userId: applications.userId, c: sql<number>`count(*)::int` })
+    .from(applications)
+    .where(inArray(applications.userId, userIds))
+    .groupBy(applications.userId);
+  const appliedBy = new Map(appliedRows.map((r) => [r.userId, Number(r.c)]));
+
+  // 모임 개설 횟수
+  const createdRows = await db
+    .select({ ownerId: activities.ownerId, c: sql<number>`count(*)::int` })
+    .from(activities)
+    .where(inArray(activities.ownerId, userIds))
+    .groupBy(activities.ownerId);
+  const createdBy = new Map(createdRows.map((r) => [r.ownerId, Number(r.c)]));
+
+  // 팔로잉 수
+  const followingRows = await db
+    .select({ followerId: follows.followerId, c: sql<number>`count(*)::int` })
+    .from(follows)
+    .where(inArray(follows.followerId, userIds))
+    .groupBy(follows.followerId);
+  const followingBy = new Map(followingRows.map((r) => [r.followerId, Number(r.c)]));
+
   for (const u of urows) {
     const extLinks = [u.github, u.blog, u.homepage].filter(Boolean).length;
     map.set(u.id, {
@@ -699,6 +724,9 @@ async function statsFor(userIds: string[]) {
       projectCount: u.projectCount ?? 0,
       verifiedFormulaCount: verifiedBy.get(u.id) ?? 0,
       completedActivityCount: completedBy.get(u.id) ?? 0,
+      appliedActivityCount: appliedBy.get(u.id) ?? 0,
+      createdActivityCount: createdBy.get(u.id) ?? 0,
+      followingCount: followingBy.get(u.id) ?? 0,
       savesReceived: saveBy.get(u.id) ?? 0,
       memberSaves: mSaveBy.get(u.id) ?? 0,
       followerCount: followBy.get(u.id) ?? 0,
@@ -1026,6 +1054,7 @@ export interface ActivityEvent {
   text: string;
   at: string; // ISO
   href?: string; // 클릭 시 이동(공식/멤버/모임)
+  tempGain?: number; // 온도 원점수 기여값 (있을 때만 표시)
 }
 
 /**
@@ -1042,6 +1071,15 @@ export async function getActivityTimeline(
 
   const events: ActivityEvent[] = [];
   const cut = (s: string, n = 40) => (s.length > n ? s.slice(0, n) + "…" : s);
+
+  // 0) 프로필 채우기 — onboarded 시 기본 온도 부여 [공개]
+  const [uRow] = await db
+    .select({ onboarded: users.onboarded, createdAt: users.createdAt })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  if (uRow?.onboarded)
+    events.push({ kind: "onboarded", emoji: "🌡️", text: "프로필을 채웠어요", at: uRow.createdAt.toISOString(), tempGain: WEIGHTS.onboarded });
 
   // 1) 작성한 공식 [공개]
   const authored = await db
@@ -1106,7 +1144,17 @@ export async function getActivityTimeline(
     .orderBy(desc(bookmarks.createdAt))
     .limit(limit);
   for (const s of savesRecv)
-    events.push({ kind: "save-recv", emoji: "🔖", text: `'${cut(s.title)}'이 저장됐어요`, at: s.createdAt.toISOString(), href: `/formula/${s.postId}` });
+    events.push({ kind: "save-recv", emoji: "🔖", text: `'${cut(s.title)}'이 저장됐어요`, at: s.createdAt.toISOString(), href: `/formula/${s.postId}`, tempGain: WEIGHTS.saveReceived });
+
+  // 6-2) 검증된 공식 [공개·신뢰 — verifiedAt 없어 createdAt 근사]
+  const verifiedPosts = await db
+    .select({ id: posts.id, title: posts.title, createdAt: posts.createdAt })
+    .from(posts)
+    .where(and(eq(posts.authorId, userId), eq(posts.postType, "formula"), eq(posts.verified, true)))
+    .orderBy(desc(posts.createdAt))
+    .limit(limit);
+  for (const p of verifiedPosts)
+    events.push({ kind: "verified", emoji: "✅", text: `'${cut(p.title)}' 공식이 검증됐어요`, at: p.createdAt.toISOString(), href: `/formula/${p.id}`, tempGain: WEIGHTS.verifiedFormula });
 
   // 7~9) 사적 행동 — 본인 마이페이지에서만
   if (includePrivate) {

@@ -125,6 +125,9 @@ export interface ActivityStats {
   verifiedFormulaCount?: number; // ✓검증된 공식 수
   articleFormulaCount?: number; // 아티클 참고해 만든 공식(relatedArticleId)
   completedActivityCount?: number; // 모임/스터디 완주(파생). 없으면 projectCount 대체
+  appliedActivityCount?: number;  // 모임 지원 횟수(상태 무관)
+  createdActivityCount?: number;  // 모임 개설 횟수
+  followingCount?: number;        // 팔로잉 수
   savesReceived?: number; // 내 공식이 저장(북마크)된 수
   memberSaves?: number; // 멤버 하트(나를 저장)한 사람 수
   followerCount?: number; // 팔로워 수
