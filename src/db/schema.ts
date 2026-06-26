@@ -408,8 +408,34 @@ export const crawlSourceState = pgTable("crawl_source_state", {
   updatedAt: timestamp("updatedAt", { mode: "date" }).notNull().defaultNow(),
 });
 
+// ---- 아티클 추가 권한 요청 (관리자=송근일 승인) ----
+export const articlePermissionRequests = pgTable(
+  "article_permission_request",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    // user 당 1건(재요청 시 갱신).
+    userId: text("userId")
+      .notNull()
+      .unique()
+      .references(() => users.id, { onDelete: "cascade" }),
+    status: text("status")
+      .$type<"pending" | "approved" | "rejected">()
+      .notNull()
+      .default("pending"),
+    note: text("note"), // 요청 메모(선택)
+    reviewedBy: text("reviewedBy"), // 심사한 관리자 user id
+    reviewedAt: timestamp("reviewedAt", { mode: "date" }),
+    createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [index("apr_status_idx").on(t.status)],
+);
+
 export type DbRawArticle = typeof rawArticles.$inferSelect;
 export type DbCrawlSourceState = typeof crawlSourceState.$inferSelect;
+export type DbArticlePermissionRequest =
+  typeof articlePermissionRequests.$inferSelect;
 export type DbUser = typeof users.$inferSelect;
 export type DbPost = typeof posts.$inferSelect;
 export type DbInteraction = typeof interactions.$inferSelect;

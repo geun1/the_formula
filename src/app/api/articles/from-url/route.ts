@@ -7,7 +7,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
-import { isAdmin } from "@/lib/admin";
+import { canAddArticle } from "@/lib/article-permission";
 import { ingestAndPublishUrl } from "@/lib/ingest-url";
 
 export const runtime = "nodejs";
@@ -19,8 +19,11 @@ export async function POST(req: NextRequest) {
   if (!session?.user?.id) {
     return NextResponse.json({ error: "로그인이 필요해요." }, { status: 401 });
   }
-  if (!isAdmin(session.user.id)) {
-    return NextResponse.json({ error: "권한이 없어요." }, { status: 403 });
+  if (!(await canAddArticle(session.user.id))) {
+    return NextResponse.json(
+      { error: "아티클 추가 권한이 없어요. 권한을 먼저 요청해주세요." },
+      { status: 403 },
+    );
   }
 
   let url = "";

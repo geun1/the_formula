@@ -4,7 +4,6 @@ import { auth } from "@/auth";
 import { getArticles, getPopularTop5, getProfile } from "@/lib/queries";
 import type { FeedPost } from "@/lib/queries";
 import { HeroSearch, HomeSortSelect, ShareButton } from "@/components/ui";
-import { isAdmin } from "@/lib/admin";
 import { catToCover, fmtCount } from "@/lib/ref-style";
 import {
   CATEGORIES,
@@ -194,7 +193,6 @@ export default async function HomePage({
 
   const session = await auth();
   const userId = session?.user?.id ?? null;
-  const admin = isAdmin(userId); // 관리자만 '아티클 추가' 진입점 노출
 
   // 비로그인은 하단 가입 CTA. (개인화 인사는 별도 — 현재 히어로는 고정 카피)
   const profile = userId ? await getProfile("me", userId) : null;
@@ -305,9 +303,9 @@ export default async function HomePage({
           <div className="feed-main">
             <div
               className="feed-ctrl"
-              style={admin ? { justifyContent: "space-between" } : undefined}
+              style={userId ? { justifyContent: "space-between" } : undefined}
             >
-              {admin && (
+              {userId && (
                 <Link href="/article/new" className="write-btn">
                   + 아티클 추가
                 </Link>

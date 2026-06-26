@@ -24,8 +24,10 @@ import {
   conversations,
   messages,
   memberBookmarks,
+  articlePermissionRequests,
 } from "@/db/schema";
 import { auth } from "@/auth";
+import { isAdmin } from "@/lib/admin";
 import { findOrCreateConversation } from "@/lib/queries";
 import { sanitizeRichHtml, richTextLength } from "@/lib/sanitize";
 import type { FormulaBody } from "@/lib/contract";
@@ -870,4 +872,85 @@ export async function incrementView(
   revalidatePath(`/formula/${postId}`);
   revalidatePath(`/article/${postId}`);
   return ok({ counted: true });
+}
+
+// =============================================================================
+// 아티클 추가 권한 — 요청 / 심사(관리자=송근일)
+// =============================================================================
+
+/** 로그인 사용자가 아티클 추가 권한을 요청(재요청 시 pending 으로 리셋). */
+export async function requestArticlePermission(
+  note?: string,
+): Promise<ActionResult> {
+  const user = await sessionUser();
+  if (!user) return fail("로그인이 필요해요.");
+  if (isAdmin(user.id)) return ok(); // 관리자는 이미 권한 보유
+
+  const trimmed = (note ?? "").trim().slice(0, 500);
+  const [existing] = await db
+    .select({ status: articlePermissionRequests.status })
+    .from(articlePermissionRequests)
+    .where(eq(articlePermissionRequests.userId, user.id))
+    .limit(1);
+
+  // 이미 승인됨 → no-op. 재요청으로 자기 권한을 pending 으로 강등하는 자해 차단.
+  if (existing?.status === "approved") return ok();
+
+  if (existing?.status === "pending") {
+    // 검토 중 — 메모만 갱신(createdAt 유지: 반복 요청으로 심사 큐 상단 점프 방지).
+    await db
+      .update(articlePermissionRequests)
+      .set({ note: trimmed || null })
+      .where(eq(articlePermissionRequests.userId, user.id));
+  } else {
+    // 미요청(none) 또는 거절됨(rejected) → 새 pending 요청.
+    await db
+      .insert(articlePermissionRequests)
+      .values({ userId: user.id, status: "pending", note: trimmed || null })
+      .onConflictDoUpdate({
+        target: articlePermissionRequests.userId,
+        set: {
+          status: "pending",
+          note: trimmed || null,
+          reviewedBy: null,
+          reviewedAt: null,
+          createdAt: new Date(),
+        },
+      });
+  }
+
+  revalidatePath("/article/new");
+  return ok();
+}
+
+/** 관리자(송근일)가 권한 요청을 승인/거절. */
+export async function reviewArticlePermission(
+  targetUserId: string,
+  decision: "approve" | "reject",
+): Promise<ActionResult> {
+  const user = await sessionUser();
+  if (!user) return fail("로그인이 필요해요.");
+  if (!isAdmin(user.id)) return fail("승인 권한이 없어요.");
+  if (!targetUserId || typeof targetUserId !== "string") {
+    return fail("잘못된 요청이에요.");
+  }
+
+  const res = await db
+    .update(articlePermissionRequests)
+    .set({
+      status: decision === "approve" ? "approved" : "rejected",
+      reviewedBy: user.id,
+      reviewedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(articlePermissionRequests.userId, targetUserId),
+        eq(articlePermissionRequests.status, "pending"),
+      ),
+    )
+    .returning({ userId: articlePermissionRequests.userId });
+  if (res.length === 0) return fail("이미 처리됐거나 없는 요청이에요.");
+
+  revalidatePath("/article/new");
+  return ok();
 }
