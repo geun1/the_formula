@@ -110,38 +110,86 @@ export default async function ProfilePage({
   const bSaves     = savesReceived;
   const bFollowers = followerCount;
   const bTierRank  = tierRank;
-  const bGithub    = user.github;
-  const bBio       = user.bio;
   type Badge = { emoji: string; label: string };
-  // 같은 종류 중 달성한 가장 높은 단계만 반환
   const pick = (tiers: (Badge | false)[]) =>
     tiers.filter((x): x is Badge => !!x).at(-1) ?? false;
 
   const badges = [
-    bGithub       && { emoji: "🔗", label: "GitHub 연결" },
-    s.hasCompany  && { emoji: "🏢", label: "소속 인증" },
-    s.onboarded && bBio && { emoji: "📝", label: "프로필 완성" },
+    // 공식
     pick([
-      s.formulaCount >= 1  && { emoji: "🌱", label: "첫 공식" },
-      s.formulaCount >= 5  && { emoji: "✍️", label: "공식 5개" },
-      s.formulaCount >= 10 && { emoji: "✍️", label: "공식 10개" },
+      s.formulaCount >= 1 && { emoji: "🌱", label: "첫 공식" },
+      ...[5, 10, 15, 20, 25, 30, 35, 40, 45, 50].map(n =>
+        s.formulaCount >= n && { emoji: "✍️", label: `공식 ${n}개 달성` }
+      ),
     ]),
+    // 검증 공식
     pick([
       (s.verifiedFormulaCount ?? 0) >= 1 && { emoji: "✅", label: "첫 검증 공식" },
-      (s.verifiedFormulaCount ?? 0) >= 5 && { emoji: "✅", label: "검증 공식 5개" },
+      ...[5, 10, 15, 20, 25, 30].map(n =>
+        (s.verifiedFormulaCount ?? 0) >= n && { emoji: "✅", label: `검증 공식 ${n}개 달성` }
+      ),
     ]),
+    // 아티클 변환
+    pick([
+      (s.articleFormulaCount ?? 0) >= 1 && { emoji: "📰", label: "첫 아티클 변환" },
+      (s.articleFormulaCount ?? 0) >= 5 && { emoji: "📰", label: "아티클 변환 5개" },
+    ]),
+    // 모임 완주
     pick([
       bCompleted >= 1 && { emoji: "🏁", label: "첫 모임 완주" },
-      bCompleted >= 3 && { emoji: "🏆", label: "모임 3회 완주" },
+      ...[3, 6, 9, 12, 15, 18].map(n =>
+        bCompleted >= n && { emoji: "🏆", label: `모임 ${n}회 완주` }
+      ),
     ]),
+    // 모임 개설
     pick([
-      bSaves >= 10 && { emoji: "💾", label: "저장 10회" },
-      bSaves >= 50 && { emoji: "💾", label: "저장 50회" },
+      (s.createdActivityCount ?? 0) >= 1 && { emoji: "🏠", label: "첫 모임 개설" },
+      (s.createdActivityCount ?? 0) >= 3 && { emoji: "🏠", label: "모임 개설 3회" },
     ]),
+    // 모임 지원
+    (s.appliedActivityCount ?? 0) >= 1 && { emoji: "🙋", label: "첫 모임 지원" },
+    // 북마크받음
     pick([
-      bFollowers >= 10 && { emoji: "👥", label: "팔로워 10명" },
-      bFollowers >= 50 && { emoji: "👥", label: "팔로워 50명" },
+      ...[10, 30, 50, 70, 90, 110].map(n =>
+        bSaves >= n && { emoji: "💾", label: `북마크 ${n}회` }
+      ),
     ]),
+    // 하트받음
+    pick([
+      ...[10, 30, 50, 70].map(n =>
+        (s.memberSaves ?? 0) >= n && { emoji: "❤️", label: `하트 ${n}개` }
+      ),
+    ]),
+    // 받은 좋아요
+    pick([
+      ...[10, 30, 50].map(n =>
+        (s.likesReceived ?? 0) >= n && { emoji: "👍", label: `좋아요 ${n}개` }
+      ),
+    ]),
+    // 받은 댓글
+    pick([
+      (s.commentsReceived ?? 0) >= 10 && { emoji: "💬", label: "댓글 10개 받음" },
+      (s.commentsReceived ?? 0) >= 30 && { emoji: "💬", label: "댓글 30개 받음" },
+    ]),
+    // 댓글 작성
+    pick([
+      ...[10, 30, 50].map(n =>
+        s.commentCount >= n && { emoji: "🗣️", label: `댓글 ${n}회 작성` }
+      ),
+    ]),
+    // 팔로워
+    pick([
+      ...[10, 30, 50, 70, 90].map(n =>
+        bFollowers >= n && { emoji: "👥", label: `팔로워 ${n}명` }
+      ),
+    ]),
+    // 팔로잉
+    pick([
+      ...[10, 30, 50].map(n =>
+        (s.followingCount ?? 0) >= n && { emoji: "🔁", label: `팔로잉 ${n}명` }
+      ),
+    ]),
+    // 등급
     pick([
       bTierRank >= 1 && { emoji: "🌿", label: "기여자" },
       bTierRank >= 2 && { emoji: "💪", label: "활동가" },
@@ -172,28 +220,37 @@ export default async function ProfilePage({
         포뮬러
       </Link>
 
-      {/* 프로필 히어로 — 좌: 아바타 / 우: 매너온도 바→이름→태그→링크 */}
+      {/* 프로필 히어로 — 아바타 | 이름/태그/링크 | 게이지+팁 */}
       <div className="profile-hero">
-        <div className={`avatar-lg ${avaFor(user.id)}`} aria-hidden>
-          {user.image ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={user.image} alt="" style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }} />
-          ) : (
-            initialOf(user.name)
-          )}
-        </div>
+        {isMe ? (
+          <Link href="/account" className="avatar-edit-wrap" aria-label="프로필 편집">
+            <div className={`avatar-lg ${avaFor(user.id)}`} aria-hidden>
+              {user.image ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={user.image} alt="" style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }} />
+              ) : (
+                initialOf(user.name)
+              )}
+            </div>
+            <span className="avatar-edit-bar">편집</span>
+          </Link>
+        ) : (
+          <div className={`avatar-lg ${avaFor(user.id)}`} aria-hidden>
+            {user.image ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={user.image} alt="" style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }} />
+            ) : (
+              initialOf(user.name)
+            )}
+          </div>
+        )}
 
-        <div className="profile-right">
+        <div className="profile-info">
           <div className="profile-name-row">
             <span className="pn">
               {user.name}
               {role && <span className="pr-inline"> {role}</span>}
             </span>
-            {isMe && (
-              <Link href="/account" className="btn btn-ghost" style={{ fontSize: 12, padding: "3px 10px" }}>
-                편집
-              </Link>
-            )}
           </div>
 
           {user.interests.length > 0 && (
@@ -226,27 +283,29 @@ export default async function ProfilePage({
               )}
             </div>
           )}
-        </div>
-      </div>
 
-      {user.bio && <p className="profile-bio">{user.bio}</p>}
+          <div className="stats">
+            <div className="stat">
+              <div className="n">{user.activityStats.formulaCount}</div>
+              <div className="l">공식</div>
+            </div>
+            <div className="stat">
+              <div className="n">{fmtCount(savesReceived)}</div>
+              <div className="l">저장받음</div>
+            </div>
+            <div className="stat">
+              <div className="n">{fmtCount(followerCount)}</div>
+              <div className="l">팔로워</div>
+            </div>
+            <div className="stat">
+              <div className="n">{fmtCount(followingCount)}</div>
+              <div className="l">팔로잉</div>
+            </div>
+          </div>
+        </div>
 
-      <div className="stats">
-        <div className="stat">
-          <div className="n">{user.activityStats.formulaCount}</div>
-          <div className="l">공식</div>
-        </div>
-        <div className="stat">
-          <div className="n">{fmtCount(savesReceived)}</div>
-          <div className="l">저장받음</div>
-        </div>
-        <div className="stat">
-          <div className="n">{fmtCount(followerCount)}</div>
-          <div className="l">팔로워</div>
-        </div>
-        <div className="stat">
-          <div className="n">{fmtCount(followingCount)}</div>
-          <div className="l">팔로잉</div>
+        <div className="profile-gauge">
+          <MannerTempCard stats={user.activityStats} />
         </div>
       </div>
 
@@ -259,24 +318,43 @@ export default async function ProfilePage({
         />
       )}
 
-      <MannerTempCard stats={user.activityStats} />
-
-      {badges.length > 0 && (
-        <>
-          <div className="sec"><h2>나의 배지</h2></div>
-          <div className="profile-badges">
-            {badges.map((b) => (
-              <span key={b.label} className="profile-badge">
-                <span className="profile-badge-emoji">{b.emoji}</span>
-                <span className="profile-badge-label">{b.label}</span>
-              </span>
-            ))}
+      <hr className="pf-divider" />
+      <div className="sec">
+        <h2>나의 배지</h2>
+        <div className="badge-help">
+          ?
+          <div className="badge-tooltip">
+            <p className="badge-tooltip-title">달성 가능한 배지</p>
+            <ul className="badge-tooltip-list">
+              <li>🌱 공식</li>
+              <li>✅ 검증 공식</li>
+              <li>📰 아티클 변환</li>
+              <li>🏁 모임 완주</li>
+              <li>🏠 모임 개설 / 🙋 모임 지원</li>
+              <li>💾 저장받음</li>
+              <li>❤️ 하트 / 👍 좋아요</li>
+              <li>💬 댓글 받기 / 🗣️ 댓글 작성</li>
+              <li>👥 팔로워 / 🔁 팔로잉</li>
+              <li>🌿 기여자 · 💪 활동가 · 🔨 빌더 · 👑 AX마스터</li>
+            </ul>
           </div>
-        </>
+        </div>
+      </div>
+      {badges.length > 0 ? (
+        <div className="profile-badges">
+          {badges.map((b) => (
+            <span key={b.label} className="profile-badge">
+              <span className="profile-badge-emoji">{b.emoji}</span>
+              <span className="profile-badge-label">{b.label}</span>
+            </span>
+          ))}
+        </div>
+      ) : (
+        <p className="page-sub">아직 배지가 없어요. 활동을 시작하면 하나씩 모을 수 있어요.</p>
       )}
 
       <div className="sec">
-        <h2>활동 이력</h2>
+        <h2>활동 이력 및 점수</h2>
       </div>
       {timeline.length === 0 ? (
         <p className="page-sub">
@@ -288,12 +366,9 @@ export default async function ProfilePage({
         <ul className="timeline">
           {timeline.map((ev, i) => (
             <li key={i} className="tl-item">
-              {ev.href ? (
-                <Link href={ev.href} className="tl-text">
-                  {ev.text}
-                </Link>
-              ) : (
-                <span className="tl-text">{ev.text}</span>
+              <span className="tl-text">{ev.text}</span>
+              {ev.tempGain && (
+                <span className="tl-temp">+{ev.tempGain}</span>
               )}
               <span className="tl-at">{timeAgo(ev.at)}</span>
             </li>
@@ -361,11 +436,20 @@ export default async function ProfilePage({
             <>
               <div className="sec">
                 <h2>자주 보는 태그</h2>
-                <span className="more">북마크 기준</span>
+                <div className="badge-help">
+                  ?
+                  <div className="badge-tooltip">
+                    <p className="badge-tooltip-title">자주 보는 태그</p>
+                    <p className="badge-tooltip-desc">북마크한 공식의 태그를 집계한 관심 분야예요.</p>
+                    <p className="badge-tooltip-desc">클릭하면 해당 태그로 검색해요.</p>
+                  </div>
+                </div>
               </div>
               <div className="chips pf-tags">
                 {topTags.map(({ tag }) => (
-                  <Chip key={tag}>#{tag}</Chip>
+                  <Link key={tag} href={`/search?q=${encodeURIComponent(tag)}`}>
+                    <Chip>#{tag}</Chip>
+                  </Link>
                 ))}
               </div>
             </>

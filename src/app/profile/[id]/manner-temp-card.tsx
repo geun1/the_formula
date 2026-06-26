@@ -1,15 +1,18 @@
 "use client";
-// 마이페이지 매너온도 바 — 전체 척도(36.5~99°)에 단계 라벨 + 내 위치 마커.
-// 진입 시 0°→내 온도로 카운트업하며 마커가 왼쪽에서 슬라이드(등급도 함께 상승).
+// 마이페이지 매너온도 바 — 등급 세그먼트 + 내 위치 마커 + 팁(isMe).
+// 진입 시 카드 fade-in 후 핀이 0→현재 위치로 카운트업.
 import { useEffect, useRef, useState } from "react";
 import type { ActivityStats } from "@/lib/contract";
 import {
   computeTrust,
   gaugeRatio,
+  nextTier,
+  nextTierChecklist,
   tierBandFor,
   TIER_BANDS,
   TRUST_BASE,
   TRUST_MAX,
+  WEIGHTS,
 } from "@/lib/trust";
 
 export function MannerTempCard({ stats }: { stats: ActivityStats }) {
@@ -59,39 +62,106 @@ export function MannerTempCard({ stats }: { stats: ActivityStats }) {
     band: b,
     width: (bounds[i + 1] ?? TRUST_MAX) - bounds[i],
     opacity: 0.45 + 0.55 * (i / (asc.length - 1)),
+    isFirst: i === 0,
+    isLast: i === asc.length - 1,
+    scoreRange: `${b.min}점 이상`,
   }));
 
-  const pos = gaugeRatio(val) * 100; // 핀 위치 %
-  // 레이블은 가장자리에서 최소 10% 안쪽에 클램프 (텍스트 넘침 방지)
-  const labelPos = Math.max(10, Math.min(90, pos));
+  const pos = gaugeRatio(val) * 100;
   const live = tierBandFor(val);
+  const { next } = nextTier(trustScore);
+  const checklist = next ? nextTierChecklist(stats, next.tier) : [];
 
   return (
-    <div className="mt-card" ref={ref}>
-      {/* 래퍼: 레이블은 트랙 overflow:hidden 밖에서 절대 배치 */}
+    <div className="mt-card" ref={ref} data-played={played ? "true" : undefined}>
       <div className="mt-wrap">
-        <span className="mt-marker-label" style={{ left: `${labelPos}%`, color: live.color }}>
-          {live.label} {val.toFixed(1)}
-        </span>
+      <div className="mt-help">
+        ?
+        <div className="mt-tooltip">
+          <p className="mt-tooltip-title">활동별 온도 점수</p>
+          <ul className="mt-tooltip-list">
+            <li>
+              <span className="mt-tooltip-icon">🌡️</span>
+              <span className="mt-tooltip-body">
+                <span className="mt-tooltip-label">프로필 채우기</span>
+                <span className="mt-tooltip-desc">+{WEIGHTS.onboarded}점 — 기본 온도 부여</span>
+              </span>
+            </li>
+            <li>
+              <span className="mt-tooltip-icon">🏁</span>
+              <span className="mt-tooltip-body">
+                <span className="mt-tooltip-label">모임·스터디 완주</span>
+                <span className="mt-tooltip-desc">+{WEIGHTS.completion}점/회 — 가장 빠른 상승</span>
+              </span>
+            </li>
+            <li>
+              <span className="mt-tooltip-icon">✅</span>
+              <span className="mt-tooltip-body">
+                <span className="mt-tooltip-label">검증된 공식</span>
+                <span className="mt-tooltip-desc">+{WEIGHTS.verifiedFormula}점/개</span>
+              </span>
+            </li>
+            <li>
+              <span className="mt-tooltip-icon">💾</span>
+              <span className="mt-tooltip-body">
+                <span className="mt-tooltip-label">공식 저장받기</span>
+                <span className="mt-tooltip-desc">+{WEIGHTS.saveReceived}점/회</span>
+              </span>
+            </li>
+            <li>
+              <span className="mt-tooltip-icon">❤️</span>
+              <span className="mt-tooltip-body">
+                <span className="mt-tooltip-label">하트 받기</span>
+                <span className="mt-tooltip-desc">+{WEIGHTS.memberSave}점/개</span>
+              </span>
+            </li>
+          </ul>
+        </div>
+      </div>
         <div className="mt-track">
           {segs.map((s) => (
             <div
               key={s.band.tier}
               className="mt-seg"
-              style={{ flexGrow: s.width, background: s.band.color, opacity: s.opacity }}
+              style={{
+                flexGrow: s.width,
+                background: s.band.color,
+                opacity: s.opacity,
+                borderRadius: s.isFirst ? "4px 0 0 4px" : s.isLast ? "0 4px 4px 0" : "0",
+              }}
             >
-              <span className="mt-seg-label">{s.band.label}</span>
+              <span className="mt-seg-label">{s.band.emoji} {s.band.label}</span>
+              {s.band.condition && (
+                <div className="mt-seg-tooltip">
+                  <span className="mt-seg-tooltip-name">{s.band.emoji} {s.band.label}</span>
+                  <span className="mt-seg-tooltip-cond">조건 : {s.band.condition}</span>
+                  <span className="mt-seg-tooltip-score">{s.scoreRange}</span>
+                </div>
+              )}
             </div>
           ))}
-          {/* 핀만 트랙 내부에 */}
           <div className="mt-marker" style={{ left: `${pos}%` }}>
             <span className="mt-marker-pin" style={{ background: live.color }} />
           </div>
+          <span
+            className="mt-marker-label"
+            style={{
+              left: `clamp(32px, ${pos}%, calc(100% - 32px))`,
+              transform: "translateX(-50%)",
+              ["--mc" as string]: live.color,
+            }}
+          >
+            <span className="mt-ml-main">{live.emoji} {live.label}</span>
+            <span className="mt-ml-score">
+              {val.toFixed(1)}점{next ? ` / ${next.min}점` : ""}
+            </span>
+            {checklist.map((c, i) => (
+              <span key={i} className={`mt-ml-cond${c.met ? " met" : ""}`}>
+                {c.met ? "✓" : "✗"} {c.label}
+              </span>
+            ))}
+          </span>
         </div>
-      </div>
-      <div className="mt-scale">
-        <span>{TRUST_BASE}</span>
-        <span>{TRUST_MAX}</span>
       </div>
     </div>
   );
