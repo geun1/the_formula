@@ -14,7 +14,7 @@
 // - failArticle  : 가공 실패 기록.
 // 서버 전용. 라우트핸들러(src/app/api/articles/**)에서 호출.
 // =============================================================================
-import { and, asc, count, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, lt, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import {
@@ -208,6 +208,21 @@ export async function claimPending(opts: {
 }): Promise<PendingArticle[]> {
   const limit = Math.min(Math.max(opts.limit ?? 10, 1), 50);
 
+  // stale lease 회수 — enrich 도중 타임아웃/크래시로 processing 에 20분 넘게 멈춘 raw 를
+  // pending 으로 되돌려 다음 실행이 이어받게 함(영구 stuck 방지).
+  if (opts.claim) {
+    const staleBefore = new Date(Date.now() - 20 * 60 * 1000);
+    await db
+      .update(rawArticles)
+      .set({ status: "pending" })
+      .where(
+        and(
+          eq(rawArticles.status, "processing"),
+          lt(rawArticles.claimedAt, staleBefore),
+        ),
+      );
+  }
+
   const candidates = await db
     .select({ id: rawArticles.id })
     .from(rawArticles)
@@ -248,15 +263,23 @@ export interface PublishResult {
 async function ensurePersonaUsers(): Promise<void> {
   await db
     .insert(users)
-    .values(
-      AGENT_PERSONAS.map((p) => ({
+    .values([
+      // AI 큐레이터 — 대댓글(답글) 작성자 FK 보장.
+      {
+        id: AGENT_CURATOR_ID,
+        name: "AI 큐레이터",
+        role: "AI 에디터",
+        isAgent: true,
+        image: `https://avatar.vercel.sh/${AGENT_CURATOR_ID}?text=AI`,
+      },
+      ...AGENT_PERSONAS.map((p) => ({
         id: p.id,
         name: p.name,
         role: p.role,
         isAgent: true,
         image: `https://avatar.vercel.sh/${p.id}?text=AI`,
       })),
-    )
+    ])
     .onConflictDoNothing();
 }
 
@@ -266,8 +289,13 @@ const PERSONA_IDS = new Set(AGENT_PERSONAS.map((p) => p.id));
 export async function publishArticle(
   rawId: string,
   payload: PublishInput,
-  /** 수집 글 다관점 마중물 댓글(원형 페르소나). 신규 발행 시에만 적재. */
-  personaComments: { personaId: string; body: string }[] = [],
+  /** 수집 글 다관점 마중물 댓글(원형 페르소나) + 각 댓글에 대한 AI 큐레이터 답글.
+   *  신규 발행 시에만 적재. curatorReply 가 있으면 해당 페르소나 댓글의 대댓글로 달림. */
+  personaComments: {
+    personaId: string;
+    body: string;
+    curatorReply?: string;
+  }[] = [],
 ): Promise<PublishResult> {
   const [raw] = await db
     .select()
@@ -328,22 +356,63 @@ export async function publishArticle(
     })
     .where(eq(rawArticles.id, rawId));
 
-  // 다관점 페르소나 댓글 적재(신규 발행 시에만). 실패해도 발행은 유지.
+  // 다관점 페르소나 마중물 댓글 + AI 큐레이터 답글(대댓글) 적재(신규 발행 시에만).
+  // 실패해도 발행은 유지.
   const valid = personaComments.filter((c) => PERSONA_IDS.has(c.personaId));
   if (valid.length) {
     try {
-      await ensurePersonaUsers();
-      await db.insert(interactions).values(
-        valid.map((c) => ({
-          postId: post.id,
-          userId: c.personaId,
-          type: "comment" as InteractionType,
-          body: c.body,
-        })),
-      );
+      // 멱등 — 이미 이 post 에 페르소나 마중물 댓글이 있으면 재적재 skip(재발행 중복 방지).
+      const [existing] = await db
+        .select({ id: interactions.id })
+        .from(interactions)
+        .where(
+          and(
+            eq(interactions.postId, post.id),
+            eq(interactions.type, "comment"),
+            inArray(interactions.userId, [...PERSONA_IDS]),
+          ),
+        )
+        .limit(1);
+      if (!existing) {
+        await ensurePersonaUsers();
+        // 페르소나 댓글 — userId 도 반환받아 personaId 로 매칭(RETURNING 순서 비의존).
+        const inserted = await db
+          .insert(interactions)
+          .values(
+            valid.map((c) => ({
+              postId: post.id,
+              userId: c.personaId,
+              type: "comment" as InteractionType,
+              body: c.body,
+            })),
+          )
+          .returning({ id: interactions.id, userId: interactions.userId });
+        const idByPersona = new Map(inserted.map((r) => [r.userId, r.id]));
+        // AI 큐레이터가 각 페르소나의 열린 질문에 답하는 대댓글(parentId = 그 페르소나 댓글).
+        const replies = valid
+          .map((c) => ({
+            parentId: idByPersona.get(c.personaId),
+            body: c.curatorReply?.trim(),
+          }))
+          .filter(
+            (r): r is { parentId: string; body: string } =>
+              !!r.parentId && !!r.body,
+          );
+        if (replies.length) {
+          await db.insert(interactions).values(
+            replies.map((r) => ({
+              postId: post.id,
+              userId: AGENT_CURATOR_ID,
+              type: "comment" as InteractionType,
+              body: r.body,
+              parentId: r.parentId,
+            })),
+          );
+        }
+      }
     } catch (e) {
       console.warn(
-        "[persona] 댓글 적재 실패(발행은 완료):",
+        "[persona] 댓글/답글 적재 실패(발행은 완료):",
         e instanceof Error ? e.message : e,
       );
     }

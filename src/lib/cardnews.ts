@@ -236,6 +236,80 @@ export async function generatePersonaComments(input: {
   }
 }
 
+/** 큐레이터 답글 — personaId 별 답. */
+export interface CuratorReply {
+  personaId: string;
+  body: string;
+}
+
+const curatorRepliesSchema = z.object({
+  replies: z
+    .array(
+      z.object({
+        personaId: z.enum(personaIds),
+        body: z
+          .string()
+          .min(20)
+          .max(600)
+          .describe(
+            "해당 페르소나의 질문/관점에 대한 'AI 큐레이터'의 답글(해요체, 2~4문장). " +
+              "글의 구체적 내용·근거로 질문에 직접 답하고, 본문에 없는 사실 창작 금지. 중립적·정보 제공 톤.",
+          ),
+      }),
+    )
+    .max(AGENT_PERSONAS.length),
+});
+
+/**
+ * 마중물 페르소나 댓글(각자 열린 질문으로 끝남)에 대한 'AI 큐레이터'의 답글.
+ * 각 페르소나 댓글당 1개 — 글 내용을 근거로 질문에 답해 토론의 첫 답을 채운다.
+ * personaId 로 매칭(없으면 그 페르소나는 답 없음). 실패 시 [](발행 비차단).
+ */
+export async function generateCuratorReplies(input: {
+  originalTitle: string;
+  rawContent: string;
+  personaComments: { personaId: string; body: string }[];
+  model?: string;
+}): Promise<CuratorReply[]> {
+  const {
+    originalTitle,
+    rawContent,
+    personaComments,
+    model = CARDNEWS_MODEL,
+  } = input;
+  if (personaComments.length === 0) return [];
+  try {
+    const askList = personaComments
+      .map((c) => `- ${c.personaId}: "${c.body}"`)
+      .join("\n");
+    const { object } = await generateObject({
+      model: google(model),
+      schema: curatorRepliesSchema,
+      maxOutputTokens: 2048,
+      system:
+        "당신은 'AI 큐레이터'입니다(이 글을 큐레이션해 올린 에디터). 아래 글에 여러 페르소나가 남긴 " +
+        "댓글 각각이 사람에게 던지는 열린 질문으로 끝납니다. 답이 없으면 질문이 공허하므로, 당신이 각 " +
+        "페르소나의 질문/관점에 대해 글 내용을 근거로 답하는 답글을 personaId 별로 하나씩 작성합니다. " +
+        "규칙: (1) 해당 질문에 직접 답하고, (2) 글의 구체적 내용·수치·근거를 활용하되 본문에 없는 사실은 " +
+        "지어내지 말 것(모르면 한계를 솔직히), (3) 해요체 2~4문장, (4) 중립적·정보 제공적 큐레이터 톤.\n" +
+        `페르소나(personaId — 닉네임(직군): 렌즈):\n${PERSONA_GUIDE}`,
+      prompt:
+        `글 제목: ${originalTitle}\n\n본문:\n${rawContent.slice(0, 12000)}\n\n` +
+        `아래 각 페르소나 댓글(열린 질문 포함)에 personaId 별로 답글을 작성해줘:\n${askList}`,
+    });
+    const seen = new Set<string>();
+    return object.replies.filter((r) =>
+      seen.has(r.personaId) ? false : (seen.add(r.personaId), true),
+    );
+  } catch (err) {
+    console.warn(
+      "[curator] 답글 생성 실패(건너뜀):",
+      err instanceof Error ? err.message : err,
+    );
+    return [];
+  }
+}
+
 /** 하위호환 — CardNews 만 필요할 때. */
 export async function generateCardNews(
   input: GenerateCardNewsInput,

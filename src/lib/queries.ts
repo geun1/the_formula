@@ -40,6 +40,7 @@ import type {
   Activity,
   Application,
   Comment,
+  CommentNode,
   ConversationSummary,
   Message,
   Post,
@@ -301,7 +302,7 @@ export async function getArticles(
 
 export interface ArticleDetail {
   post: FeedPost;
-  comments: Comment[];
+  comments: CommentNode[];
   isSaved: boolean;
   isLiked: boolean;
   author: ProfileLite | null;
@@ -419,7 +420,7 @@ export const getArchive = getArchives;
 // =============================================================================
 export interface FormulaDetail {
   post: FeedPost;
-  comments: Comment[];
+  comments: CommentNode[];
   isSaved: boolean;
   isLiked: boolean;
   author: ProfileLite | null;
@@ -439,6 +440,29 @@ export interface ProfileLite {
   badgeLabel: string;
 }
 
+/**
+ * 평면 댓글 목록 → 트리(무제한 중첩 대댓글).
+ * 입력이 createdAt 오름차순이면 각 노드의 replies 도 오름차순으로 쌓인다.
+ * 부모가 목록에 없는 고아(cascade 로 사실상 없음)는 최상위로 승격해 유실 방지.
+ */
+function buildCommentTree(flat: Comment[]): CommentNode[] {
+  const byId = new Map<string, CommentNode>();
+  for (const c of flat) byId.set(c.id, { ...c, replies: [] });
+  const roots: CommentNode[] = [];
+  for (const c of flat) {
+    const node = byId.get(c.id)!;
+    const parent = c.parentId ? byId.get(c.parentId) : undefined;
+    if (parent) parent.replies.push(node);
+    else roots.push(node);
+  }
+  // 최상위는 최신순(새로 단 댓글이 맨 위 → 작성 직후 페이지네이션에 가려지지 않음).
+  // 답글은 입력 순서(createdAt 오름차순) 그대로 — 스레드 흐름 보존.
+  return roots.reverse();
+}
+
+/** 한 글 댓글 fetch 상한(트리화 전). 초과분은 잘림 — 현 규모에선 충분, 초과 시 서버 페이지네이션 필요. */
+const COMMENT_FETCH_CAP = 1000;
+
 /** 단일 post 상세. 없으면 null. 댓글은 interactions(type='comment') 기반. */
 export async function getFormula(
   id: string,
@@ -452,29 +476,32 @@ export async function getFormula(
   if (!rows.length) return null;
   const post = rowToPost(rows[0]);
 
-  // 댓글 + 작성자 정보 조인
+  // 댓글 + 작성자 정보 조인 (대댓글 parentId 포함). createdAt 오름차순.
   const commentRows = await db
     .select({
       id: interactions.id,
       postId: interactions.postId,
       userId: interactions.userId,
       body: interactions.body,
+      parentId: interactions.parentId,
       createdAt: interactions.createdAt,
       authorName: users.name,
       authorImage: users.image,
+      authorIsAgent: users.isAgent,
     })
     .from(interactions)
     .innerJoin(users, eq(users.id, interactions.userId))
     .where(
       and(eq(interactions.postId, id), eq(interactions.type, "comment")),
     )
-    .orderBy(asc(interactions.createdAt));
+    .orderBy(asc(interactions.createdAt))
+    .limit(COMMENT_FETCH_CAP);
 
   // 댓글 작성자 등급은 각 작성자 stats 로 계산
   const commenterIds = Array.from(new Set(commentRows.map((c) => c.userId)));
   const tierById = await tierMapFor(commenterIds);
 
-  const comments: Comment[] = commentRows.map((c) => ({
+  const flatComments: Comment[] = commentRows.map((c) => ({
     id: c.id,
     postId: c.postId,
     userId: c.userId,
@@ -483,7 +510,10 @@ export async function getFormula(
     authorImage: c.authorImage,
     authorTier: tierById.get(c.userId) ?? "sprout",
     createdAt: c.createdAt.toISOString(),
+    parentId: c.parentId ?? null,
+    isAgent: c.authorIsAgent ?? false,
   }));
+  const comments = buildCommentTree(flatComments);
 
   // 저장/좋아요 여부
   let isSaved = false;

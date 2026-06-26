@@ -177,6 +177,15 @@ export interface Comment {
   authorImage: string | null;
   authorTier: Tier;
   createdAt: string;
+  /** 대댓글이면 부모 댓글 id, 최상위면 null. */
+  parentId: string | null;
+  /** 작성자가 AI 에이전트(큐레이터/페르소나)인지 — 뱃지 표시용. */
+  isAgent?: boolean;
+}
+
+/** 트리 형태 댓글 — 무제한 중첩 대댓글. replies 는 createdAt 오름차순. */
+export interface CommentNode extends Comment {
+  replies: CommentNode[];
 }
 
 export interface Interaction {

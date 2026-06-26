@@ -9,7 +9,7 @@
 // - 파생 카운트는 저장하지 않음(읽기 시 SQL 집계). 여기선 토글/append 만.
 // =============================================================================
 import { z } from "zod";
-import { and, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
@@ -150,6 +150,7 @@ const commentSchema = z.object({
 export async function addComment(
   postId: string,
   body: string,
+  parentId?: string | null,
 ): Promise<ActionResult> {
   const user = await sessionUser();
   if (!user) return fail("로그인이 필요해요.");
@@ -160,20 +161,83 @@ export async function addComment(
   }
 
   const [p] = await db
-    .select({ id: posts.id })
+    .select({ id: posts.id, postType: posts.postType })
     .from(posts)
     .where(eq(posts.id, parsed.data.postId))
     .limit(1);
-  if (!p) return fail("공식을 찾을 수 없어요.");
+  if (!p) return fail("게시물을 찾을 수 없어요.");
+
+  // 도배/중복 방지(라이트) — 최근 내 댓글 5건으로 10초 폭주 + 60초 내 동일 본문 차단.
+  const now = Date.now();
+  const recent = await db
+    .select({ body: interactions.body, createdAt: interactions.createdAt })
+    .from(interactions)
+    .where(
+      and(
+        eq(interactions.userId, user.id),
+        eq(interactions.postId, parsed.data.postId),
+        eq(interactions.type, "comment"),
+      ),
+    )
+    .orderBy(desc(interactions.createdAt))
+    .limit(5);
+  if (recent.filter((r) => now - r.createdAt.getTime() < 10_000).length >= 5) {
+    return fail("댓글을 너무 빠르게 작성했어요. 잠시 후 다시 시도해주세요.");
+  }
+  if (
+    recent.some(
+      (r) =>
+        (r.body ?? "") === parsed.data.body &&
+        now - r.createdAt.getTime() < 60_000,
+    )
+  ) {
+    return fail("방금 같은 댓글을 남겼어요.");
+  }
+
+  // 대댓글 — 부모가 같은 글의 comment 인지 검증 + 깊이 상한(stored-DoS 방지).
+  // 무제한 중첩을 허용하되, 사람이 쓸 깊이를 훨씬 넘는 병적 체인(수천 단계)만 차단.
+  const MAX_DEPTH = 8;
+  let parent: string | null = null;
+  if (parentId) {
+    let cur: string | null = parentId;
+    let depth = 0;
+    let directOk = false;
+    while (cur && depth <= MAX_DEPTH) {
+      const [row] = await db
+        .select({
+          postId: interactions.postId,
+          type: interactions.type,
+          parentId: interactions.parentId,
+        })
+        .from(interactions)
+        .where(eq(interactions.id, cur))
+        .limit(1);
+      if (!row) break;
+      if (depth === 0) {
+        if (row.postId !== parsed.data.postId || row.type !== "comment") break;
+        directOk = true;
+      }
+      depth++;
+      cur = row.parentId;
+    }
+    if (!directOk) return fail("답글 대상 댓글을 찾을 수 없어요.");
+    if (depth > MAX_DEPTH) {
+      return fail("답글이 너무 깊어요. 위쪽 댓글에 답글을 남겨주세요.");
+    }
+    parent = parentId;
+  }
 
   await db.insert(interactions).values({
     userId: user.id,
     postId: parsed.data.postId,
     type: "comment",
     body: parsed.data.body,
+    parentId: parent,
   });
 
-  revalidatePath(`/formula/${parsed.data.postId}`);
+  // cardnews=아티클(/article), 그 외=공식(/formula) — 올바른 경로 갱신.
+  const path = p.postType === "cardnews" ? "/article/" : "/formula/";
+  revalidatePath(`${path}${parsed.data.postId}`);
   return ok();
 }
 

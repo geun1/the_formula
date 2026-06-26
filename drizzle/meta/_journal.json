@@ -57,6 +57,13 @@
       "when": 1782449721581,
       "tag": "0007_steep_iceman",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1782461727313,
+      "tag": "0008_organic_stepford_cuckoos",
+      "breakpoints": true
     }
   ]
 }

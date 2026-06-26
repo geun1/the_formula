@@ -18,7 +18,11 @@ import {
   failArticle,
   getQueueStats,
 } from "@/lib/ingest";
-import { enrichArticle, generatePersonaComments } from "@/lib/cardnews";
+import {
+  enrichArticle,
+  generatePersonaComments,
+  generateCuratorReplies,
+} from "@/lib/cardnews";
 import { loadSourceConditionals, recordCrawlOutcomes } from "@/lib/source-state";
 
 export const dynamic = "force-dynamic";
@@ -103,10 +107,23 @@ export async function GET(req: NextRequest) {
             originalTitle: raw.originalTitle,
             rawContent: raw.rawContent,
           });
+          // AI 큐레이터가 각 페르소나의 열린 질문에 답하는 대댓글.
+          const curatorReplies = await generateCuratorReplies({
+            originalTitle: raw.originalTitle,
+            rawContent: raw.rawContent,
+            personaComments: persona,
+          });
+          const replyBy = new Map(
+            curatorReplies.map((r) => [r.personaId, r.body]),
+          );
+          const seeded = persona.map((p) => ({
+            ...p,
+            curatorReply: replyBy.get(p.personaId),
+          }));
           const pub = await publishArticle(
             raw.id,
             { cardnews: enr.cardnews, category: enr.category, tags: enr.tags },
-            persona,
+            seeded,
           );
           if (pub.ok) {
             published.push({ id: raw.id, postId: pub.postId, title: raw.originalTitle });

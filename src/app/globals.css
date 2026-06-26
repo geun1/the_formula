@@ -760,6 +760,64 @@ body {
   border-bottom: 1px solid var(--border);
 }
 
+/* =============================================================================
+   댓글 스레드 — 대댓글(무제한 중첩)·AI 뱃지·답글 폼·페이지네이션
+   (reference.css .comment-* 스킨 위에 보강)
+   ========================================================================== */
+.ci-agent {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #fff;
+  background: linear-gradient(135deg, var(--blue), #5b8def);
+  border-radius: 5px;
+  padding: 1px 6px;
+  flex-shrink: 0;
+}
+.ci-reply-btn {
+  margin-top: 8px;
+  display: inline-block;
+}
+.ci-reply-form {
+  margin-top: 10px;
+  margin-bottom: 4px;
+}
+.ci-replies {
+  margin-top: 10px;
+  padding-left: 14px;
+  border-left: 2px solid var(--border);
+}
+.ci-replies .comment-item {
+  padding: 14px 0;
+}
+.ci-replies .comment-item:last-child {
+  padding-bottom: 0;
+}
+/* 일정 깊이 이상은 들여쓰기 중단(평탄) — 깊은 스레드가 화면 밖으로 밀리는 것 방지 */
+.ci-replies-flat {
+  padding-left: 0;
+  border-left: none;
+}
+@media (max-width: 768px) {
+  .ci-replies {
+    padding-left: 8px;
+  }
+}
+.cs-more {
+  width: 100%;
+  margin-top: 16px;
+  padding: 12px;
+  border-radius: var(--r-sm);
+  background: var(--bg-2);
+  color: var(--t2);
+  font-size: 14px;
+  font-weight: 700;
+  transition: background 0.15s;
+}
+.cs-more:hover {
+  background: var(--border);
+}
+
 /* ==========================================================================
    모바일 반응형 — globals.css 커스텀 클래스(reference.css 가 다루지 않는 영역) 보정.
    globals 는 layout 에서 reference 보다 먼저 로드되므로, reference 와 겹치는 클래스는

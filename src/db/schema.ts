@@ -161,12 +161,18 @@ export const interactions = pgTable(
       .references(() => users.id, { onDelete: "cascade" }),
     type: text("type").$type<InteractionType>().notNull(),
     body: text("body"), // comment 전용
+    // 대댓글 — 부모 댓글(같은 interaction) 참조. top-level 댓글은 null. 무제한 중첩.
+    // 부모 삭제 시 답글도 cascade 삭제(데이터 정합).
+    parentId: text("parentId").references((): AnyPgColumn => interactions.id, {
+      onDelete: "cascade",
+    }),
     createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
   },
   (t) => [
     index("interaction_post_idx").on(t.postId),
     index("interaction_user_idx").on(t.userId),
     index("interaction_type_idx").on(t.type),
+    index("interaction_parent_idx").on(t.parentId),
   ],
 );
 

@@ -13,7 +13,8 @@
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "db:seed": "node --env-file=.env.local --import tsx src/db/seed.ts",
-    "crawl:check": "tsx scripts/crawl-check.ts"
+    "crawl:check": "tsx scripts/crawl-check.ts",
+    "backfill:curator": "node --env-file=.env.local --import tsx scripts/backfill-curator-replies.ts"
   },
   "dependencies": {
     "@ai-sdk/google": "^3.0.83",
