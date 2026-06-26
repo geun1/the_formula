@@ -96,9 +96,15 @@ export function scoreFromStats(s: ActivityStats): number {
   const raw = rawScore(s);
   const score = TRUST_MAX * (raw / (raw + SATURATION_K));
 
-  // 최소 조건 미충족 등급의 경계값 미만으로 상한 설정 (높은 등급부터 검사)
+  // 최소 조건 미충족 시 상한 잠금. 등급 조건은 단계형(누적)이라 — contributor→activist
+  // →builder→master 순으로 이전 조건을 포함 — '낮은 등급부터' 검사해 처음으로 미충족한
+  // 등급의 경계 미만으로 캡해야 한다(그 위 등급은 자동 미충족). TIER_BANDS 는 높은등급순
+  // 배열이므로 뒤(sprout)에서 앞(master)으로 순회한다.
+  // ⚠ 높은등급부터 돌면 거의 모든 유저가 master 에서 먼저 걸려 81.9°로 고정돼 게이팅이
+  //    무력화된다(공식 0개도 passive 신호만으로 builder 표시) — 그 회귀를 막는 핵심 수정.
   let maxScore = TRUST_MAX;
-  for (const band of TIER_BANDS) {
+  for (let i = TIER_BANDS.length - 1; i >= 0; i--) {
+    const band = TIER_BANDS[i];
     if (!meetsMinCondition(s, band.tier)) {
       maxScore = band.min - 0.1;
       break;

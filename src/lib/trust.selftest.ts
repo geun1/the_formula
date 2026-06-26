@@ -55,7 +55,8 @@ const personas: { name: string; expect: Tier; s: ActivityStats }[] = [
       ...base, onboarded: true, hasCompany: true, externalLinkCount: 2,
       formulaCount: 8, verifiedFormulaCount: 8, completedActivityCount: 6,
       likesReceived: 100, followerCount: 120, savesReceived: 90,
-      memberSaves: 30, commentsReceived: 40, commentCount: 20,
+      // master 조건 = 완주5+검증3+하트50. 하트(memberSaves)는 50 이상이어야 master 진입.
+      memberSaves: 60, commentsReceived: 40, commentCount: 20,
     },
   },
 ];
@@ -79,6 +80,18 @@ const scores = personas.map((p) => computeTrust(p.s).trustScore);
 for (let i = 1; i < scores.length; i++) {
   assert(scores[i] > scores[i - 1], `단조성 위반: ${personas[i].name}(${scores[i]}) <= 이전(${scores[i - 1]})`);
 }
+
+// 회귀 가드: 공식 0개 + 대량 passive 신호(저장/하트/좋아요)는 등급조건(공식 작성)을 못 채워
+// sprout 에 잠겨야 한다. cap 루프가 최상위(master)에서 먼저 break 하면 builder(81.9°)로 새던 버그 방지.
+const passiveWhale = computeTrust({
+  ...base, onboarded: true,
+  savesReceived: 500, memberSaves: 500, likesReceived: 500, commentsReceived: 500,
+});
+assert(
+  passiveWhale.tier === "sprout",
+  `게이팅 누수: 공식 0개 passive whale 가 '${passiveWhale.tier}'(${passiveWhale.trustScore}°)로 샘 — sprout 여야 함`,
+);
+console.log(`\n[회귀 가드] 공식0+대량passive → ${passiveWhale.band.emoji}${passiveWhale.badgeLabel} ${passiveWhale.trustScore}° (sprout 잠금 OK)`);
 
 // breakdown 예시 — 빌더의 "왜 이 온도?"
 console.log("\n[빌더] 왜 이 온도? (기여 큰 순)");

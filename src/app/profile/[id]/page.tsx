@@ -95,7 +95,8 @@ export default async function ProfilePage({
 
   // 북마크한 공식 — 본인 마이페이지에서만(저장함은 사적).
   const savedPosts = isMe ? await getSaved(user.id) : [];
-  const topTags = await getTopBookmarkTags(user.id, 5);
+  // 자주 보는 태그도 본인 한정(렌더가 isMe 블록 안이라 남 프로필에선 쿼리 자체가 낭비) — getSaved 와 일관.
+  const topTags = isMe ? await getTopBookmarkTags(user.id, 5) : [];
 
   const role = [user.jobRole ?? user.role, user.company]
     .filter(Boolean)

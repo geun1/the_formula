@@ -30,6 +30,7 @@ import {
   eq,
   ilike,
   inArray,
+  isNotNull,
   or,
   sql,
 } from "drizzle-orm";
@@ -577,7 +578,7 @@ async function statsFor(userIds: string[]) {
   type StatsRow = {
     visitCount: number; commentCount: number; formulaCount: number;
     likesReceived: number; projectCount: number;
-    verifiedFormulaCount: number; completedActivityCount: number; appliedActivityCount: number;
+    verifiedFormulaCount: number; articleFormulaCount: number; completedActivityCount: number; appliedActivityCount: number;
     createdActivityCount: number; followingCount: number;
     savesReceived: number; memberSaves: number; followerCount: number;
     commentsReceived: number; onboarded: boolean; hasCompany: boolean;
@@ -714,6 +715,20 @@ async function statsFor(userIds: string[]) {
     .groupBy(follows.followerId);
   const followingBy = new Map(followingRows.map((r) => [r.followerId, Number(r.c)]));
 
+  // 아티클 참고해 만든 공식 수 (relatedArticleId non-null) — '아티클 변환' 배지 판정용
+  const articleFmRows = await db
+    .select({ authorId: posts.authorId, c: sql<number>`count(*)::int` })
+    .from(posts)
+    .where(
+      and(
+        inArray(posts.authorId, userIds),
+        eq(posts.postType, "formula"),
+        isNotNull(posts.relatedArticleId),
+      ),
+    )
+    .groupBy(posts.authorId);
+  const articleFmBy = new Map(articleFmRows.map((r) => [r.authorId, Number(r.c)]));
+
   for (const u of urows) {
     const extLinks = [u.github, u.blog, u.homepage].filter(Boolean).length;
     map.set(u.id, {
@@ -723,6 +738,7 @@ async function statsFor(userIds: string[]) {
       likesReceived: likeBy.get(u.id) ?? 0,
       projectCount: u.projectCount ?? 0,
       verifiedFormulaCount: verifiedBy.get(u.id) ?? 0,
+      articleFormulaCount: articleFmBy.get(u.id) ?? 0,
       completedActivityCount: completedBy.get(u.id) ?? 0,
       appliedActivityCount: appliedBy.get(u.id) ?? 0,
       createdActivityCount: createdBy.get(u.id) ?? 0,
@@ -1023,13 +1039,9 @@ export async function getProfile(
     onboarded: u.onboarded,
     isAgent: u.isAgent,
     authoredPostIds: authoredPosts.map((p) => p.id),
-    activityStats: {
-      visitCount: s.visitCount,
-      commentCount: s.commentCount,
-      formulaCount: s.formulaCount,
-      likesReceived: s.likesReceived,
-      projectCount: s.projectCount,
-    },
+    // ★ s(완전한 StatsRow) 전체를 그대로 전달 — 5필드만 복사하면 MannerTempCard/배지가
+    //   절단된 스탯으로 재계산해 서버 trustScore/tier 와 불일치(완주·검증·하트 누락). 전체 전달.
+    activityStats: { ...s },
     trustScore: t.trustScore,
     tier: t.tier,
     badgeLabel: t.badgeLabel,
