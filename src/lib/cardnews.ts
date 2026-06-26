@@ -6,7 +6,7 @@
 // - @ai-sdk/google 가 GOOGLE_GENERATIVE_AI_API_KEY 로 직접 인증(게이트웨이 불필요).
 // - 호출 실패 시 결정론적 폴백으로 graceful degrade.
 // =============================================================================
-import { generateObject } from "ai";
+import { generateObject, generateText } from "ai";
 import { google } from "@ai-sdk/google";
 import { z } from "zod";
 import type { CardNews, Category } from "@/lib/contract";
@@ -308,6 +308,44 @@ export async function generateCuratorReplies(input: {
     );
     return [];
   }
+}
+
+/**
+ * 'AI와 함께 써보기' — 사용자 방향성(+연결 아티클 맥락)으로 AX 공식 마크다운 초안 생성.
+ * 표(| 열 |)·차트(```chart)도 맥락 맞으면 활용. 출력은 마크다운(Markdown 컴포넌트로 렌더).
+ * 실패 시 throw(라우트에서 처리).
+ */
+export async function generateArchiveDraft(input: {
+  direction: string;
+  articleTitle?: string;
+  articleContent?: string;
+  model?: string;
+}): Promise<string> {
+  const {
+    direction,
+    articleTitle,
+    articleContent,
+    model = CARDNEWS_MODEL,
+  } = input;
+
+  const ctx = articleTitle
+    ? `\n\n[연결된 아티클 — 이 맥락을 반영해줘]\n제목: ${articleTitle}\n내용:\n${(articleContent ?? "").slice(0, 8000)}`
+    : "";
+
+  const { text } = await generateText({
+    model: google(model),
+    // 표·차트 포함 멀티섹션 한국어 글 — 잘리면 표/차트가 깨지므로 enrichArticle 과 동일하게 크게.
+    maxOutputTokens: 16384,
+    system:
+      "당신은 The Formula 의 'AX 공식'(업무에 AI를 적용한 사례·방법) 작성을 돕는 에디터입니다. " +
+      "사용자가 준 방향성과(있으면) 연결된 아티클 맥락을 바탕으로 읽기 좋은 한국어 마크다운 글을 작성합니다.\n" +
+      "규칙: (1) 해요체, ##/### 소제목으로 명확히 구조화, (2) 문제 상황 → 접근/가설 → 적용 과정 → 결과 " +
+      "흐름이 자연스럽게 드러나게, (3) 맥락에 맞으면 표(`| 열 | 열 |` 형식)나 차트(```chart 펜스 + " +
+      'JSON `{"title","unit","data":[{"label","value"}]}`)를 활용해 가독성을 높임, ' +
+      "(4) 근거 없는 과장·허위 수치 금지(모르면 일반화), (5) 마크다운 본문만 출력하고 전체를 코드펜스로 감싸지 말 것.",
+    prompt: `다음 방향성으로 'AX 공식' 글을 작성해줘:\n${direction.slice(0, 2000)}${ctx}`,
+  });
+  return text.trim();
 }
 
 /** 하위호환 — CardNews 만 필요할 때. */

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { auth } from "@/auth";
 import { getArticles, getArchiveDetail } from "@/lib/queries";
+import { getArticlePermission } from "@/lib/article-permission";
 import type { ArticleOption } from "./create-archive-form";
 import { CreateArchiveForm } from "./create-archive-form";
 
@@ -57,6 +58,11 @@ export default async function NewArchivePage({
     }
   }
 
+  // 'AI와 함께 써보기' 권한 — admin(송근일)/approved 만. 그 외엔 요청 안내.
+  const aiPermission = viewerId
+    ? await getArticlePermission(viewerId)
+    : "none";
+
   return (
     <div className="wrap" style={{ maxWidth: 760 }}>
       <Link href="/archive" className="back">
@@ -84,7 +90,11 @@ export default async function NewArchivePage({
       </p>
 
       {viewerId ? (
-        <CreateArchiveForm articles={articles} prefill={prefill} />
+        <CreateArchiveForm
+          articles={articles}
+          prefill={prefill}
+          aiPermission={aiPermission}
+        />
       ) : (
         <div className="join-cta" style={{ marginTop: 32 }}>
           <div>

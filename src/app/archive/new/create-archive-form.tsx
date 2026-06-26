@@ -1,7 +1,9 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { createArchive } from "@/app/actions";
+import { useRouter } from "next/navigation";
+import { createArchive, requestArticlePermission } from "@/app/actions";
+import { Markdown } from "@/components/ui";
 import { RichEditor } from "./rich-editor";
 import {
   CATEGORIES,
@@ -46,10 +48,14 @@ function splitList(raw: string, max: number): string[] {
 export function CreateArchiveForm({
   articles,
   prefill,
+  aiPermission,
 }: {
   articles: ArticleOption[];
   prefill: ArticleOption | null;
+  aiPermission: "admin" | "approved" | "pending" | "rejected" | "none";
 }) {
+  const router = useRouter();
+  const canUseAi = aiPermission === "admin" || aiPermission === "approved";
   // 기본 정보
   const [title, setTitle] = useState("");
   const [oneLiner, setOneLiner] = useState("");
@@ -58,9 +64,19 @@ export function CreateArchiveForm({
   const [workType, setWorkType] = useState("");
   const [tagsRaw, setTagsRaw] = useState("");
 
-  // 작성 양식: guide(구조화 폼) / free(자유 에디터)
-  const [format, setFormat] = useState<"guide" | "free">("guide");
+  // 작성 양식: guide(구조화 폼) / free(자유 에디터) / ai(AI 작성)
+  const [format, setFormat] = useState<"guide" | "free" | "ai">("guide");
   const [content, setContent] = useState(""); // 자유 형식 HTML
+
+  // AI와 함께 써보기
+  const [aiDirection, setAiDirection] = useState("");
+  const [aiDraft, setAiDraft] = useState(""); // AI 생성/수정 마크다운
+  const [aiPreview, setAiPreview] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [draftErr, setDraftErr] = useState<string | null>(null);
+  // 권한 요청
+  const [reqPending, setReqPending] = useState(false);
+  const [requested, setRequested] = useState(false);
 
   // 공식 본문(guide)
   const [problem, setProblem] = useState("");
@@ -101,6 +117,11 @@ export function CreateArchiveForm({
       const text = content.replace(/<[^>]+>/g, "").replace(/&nbsp;/gi, " ").trim();
       if (!text) {
         setError("내용을 입력해 주세요.");
+        return;
+      }
+    } else if (format === "ai") {
+      if (!aiDraft.trim()) {
+        setError("AI 초안을 생성하거나 내용을 입력해 주세요.");
         return;
       }
     } else {
@@ -144,12 +165,64 @@ export function CreateArchiveForm({
           process: process.trim(),
           result: result.trim(),
           timeSaved: timeSaved.trim(),
-          content, // 자유 형식 HTML(서버에서 새니타이즈)
+          // free=HTML(서버 새니타이즈) / ai=마크다운(Markdown 렌더)
+          content: format === "ai" ? aiDraft : content,
         },
         relatedArticleId: relatedArticleId || null,
       });
       if (res && !res.ok) setError(res.error);
     });
+  }
+
+  /** AI 초안 생성 — 방향성(+연결 아티클) → 마크다운 초안. */
+  async function generateDraft() {
+    setDraftErr(null);
+    const dir = aiDirection.trim();
+    if (dir.length < 5) {
+      setDraftErr("어떤 글을 쓰고 싶은지 방향을 5자 이상 적어주세요.");
+      return;
+    }
+    setGenerating(true);
+    try {
+      const res = await fetch("/api/archive/draft", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          direction: dir,
+          articleId: relatedArticleId || null,
+        }),
+        signal: AbortSignal.timeout(150_000),
+      });
+      const data = (await res.json()) as { draft?: string; error?: string };
+      if (res.ok && data.draft) {
+        setAiDraft(data.draft);
+        setAiPreview(true);
+      } else {
+        setDraftErr(data.error ?? "초안 생성에 실패했어요.");
+      }
+    } catch (e) {
+      setDraftErr(
+        e instanceof DOMException && e.name === "TimeoutError"
+          ? "초안 생성이 오래 걸려요. 잠시 후 다시 시도해주세요."
+          : "요청 중 오류가 발생했어요.",
+      );
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  /** AI 작성 권한 요청(미권한자). 성공 시 새로고침으로 '검토 중' 상태 반영. */
+  async function requestPerm() {
+    setReqPending(true);
+    try {
+      const res = await requestArticlePermission();
+      if (res.ok) {
+        setRequested(true);
+        router.refresh();
+      }
+    } finally {
+      setReqPending(false);
+    }
   }
 
   return (
@@ -302,11 +375,23 @@ export function CreateArchiveForm({
         >
           ✏️ 자유 형식
         </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={format === "ai"}
+          className={`fmt-tab${format === "ai" ? " on" : ""}`}
+          onClick={() => setFormat("ai")}
+          disabled={pending}
+        >
+          🤖 AI와 함께
+        </button>
       </div>
       <p className="fmt-hint">
         {format === "guide"
           ? "문제 → 가설 → 도구 → 과정 → 결과 순서로 채우면 상세 페이지에 구조화돼 보여요."
-          : "에디터에 자유롭게 쓰면 상세 페이지에 쓴 그대로 보여요."}
+          : format === "ai"
+            ? "방향성을 알려주면 AI가 (연결한 아티클 맥락까지 반영해) 표·차트가 포함된 초안을 써줘요. 초안을 다듬어 올릴 수 있어요."
+            : "에디터에 자유롭게 쓰면 상세 페이지에 쓴 그대로 보여요."}
       </p>
       <div className="write-divider" />
 
@@ -317,6 +402,115 @@ export function CreateArchiveForm({
           <RichEditor value={content} onChange={setContent} />
         </div>
       )}
+
+      {/* AI와 함께 써보기 */}
+      {format === "ai" &&
+        (canUseAi ? (
+          <div className="ai-write">
+            {relatedArticleId && (
+              <p className="ci-hint" style={{ marginBottom: 12 }}>
+                ✦ 위에서 연결한 아티클 맥락이 초안에 반영돼요.
+              </p>
+            )}
+            <div className="field" style={{ marginBottom: 12 }}>
+              <label htmlFor="aiDir">어떤 글을 쓰고 싶은가요? (방향성)</label>
+              <textarea
+                id="aiDir"
+                className="title-input"
+                style={areaStyle}
+                value={aiDirection}
+                onChange={(e) => setAiDirection(e.target.value)}
+                maxLength={2000}
+                placeholder="예: 이 아티클의 기법을 우리 팀 코드리뷰 자동화에 적용한 사례로, 전후 비교 표를 넣어서 써줘"
+                disabled={generating || pending}
+              />
+            </div>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={generateDraft}
+              disabled={generating || pending}
+              style={{ marginBottom: 16 }}
+            >
+              {generating
+                ? "초안 생성 중… (수십 초~2분)"
+                : aiDraft
+                  ? "AI 초안 다시 생성"
+                  : "AI 초안 생성하기"}
+            </button>
+            {draftErr && <p className="re-err">{draftErr}</p>}
+
+            {aiDraft && (
+              <div className="field">
+                <div className="ai-draft-bar">
+                  <label style={{ margin: 0 }}>초안 (직접 수정 가능)</label>
+                  <div className="ai-draft-tabs">
+                    <button
+                      type="button"
+                      className={`fmt-tab${!aiPreview ? " on" : ""}`}
+                      onClick={() => setAiPreview(false)}
+                    >
+                      편집
+                    </button>
+                    <button
+                      type="button"
+                      className={`fmt-tab${aiPreview ? " on" : ""}`}
+                      onClick={() => setAiPreview(true)}
+                    >
+                      미리보기
+                    </button>
+                  </div>
+                </div>
+                {aiPreview ? (
+                  <div className="md ai-draft-preview">
+                    <Markdown content={aiDraft} />
+                  </div>
+                ) : (
+                  <textarea
+                    className="title-input"
+                    style={{
+                      ...areaStyle,
+                      minHeight: 320,
+                      fontFamily: "ui-monospace, Menlo, monospace",
+                      fontSize: 13.5,
+                    }}
+                    value={aiDraft}
+                    onChange={(e) => setAiDraft(e.target.value)}
+                    maxLength={60000}
+                    disabled={pending}
+                  />
+                )}
+              </div>
+            )}
+          </div>
+        ) : aiPermission === "pending" ? (
+          <div className="perm-box">
+            <div className="perm-title">⏳ AI 작성 권한이 검토 중이에요</div>
+            <p className="perm-desc">
+              송근일님이 승인하면 AI와 함께 쓸 수 있어요. 그동안 가이드/자유 형식으로 작성할 수 있어요.
+            </p>
+          </div>
+        ) : (
+          <div className="perm-box">
+            <div className="perm-title">🤖 AI와 함께 쓰기는 승인이 필요해요</div>
+            <p className="perm-desc">
+              {requested
+                ? "요청을 보냈어요. 송근일님의 승인을 기다려주세요."
+                : "송근일님께 권한을 요청하면 검토 후 AI 작성을 쓸 수 있어요. 그동안 가이드/자유 형식으로 작성할 수 있어요."}
+            </p>
+            {!requested && (
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={requestPerm}
+                disabled={reqPending}
+                style={{ marginTop: 14 }}
+              >
+                {reqPending ? "요청 중…" : "AI 작성 권한 요청하기"}
+              </button>
+            )}
+          </div>
+        ))}
 
       {/* 가이드 형식 */}
       {format === "guide" && (

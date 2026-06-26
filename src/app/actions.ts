@@ -28,6 +28,7 @@ import {
 } from "@/db/schema";
 import { auth } from "@/auth";
 import { isAdmin } from "@/lib/admin";
+import { canAddArticle } from "@/lib/article-permission";
 import { findOrCreateConversation } from "@/lib/queries";
 import { sanitizeRichHtml, richTextLength } from "@/lib/sanitize";
 import type { FormulaBody } from "@/lib/contract";
@@ -496,8 +497,8 @@ const createArchiveSchema = z.object({
   tags: z.array(z.string().trim().min(1)).max(8).default([]),
   difficulty: z.enum(DIFFICULTIES).default("intermediate"),
   workType: z.string().trim().max(40).nullish(),
-  // 작성 양식. guide=구조화 폼 / free=자유 에디터(HTML).
-  format: z.enum(["guide", "free"]).default("guide"),
+  // 작성 양식. guide=구조화 폼 / free=자유 에디터(HTML) / ai=AI 작성(마크다운).
+  format: z.enum(["guide", "free", "ai"]).default("guide"),
   formula: z.object({
     // guide 일 때만 필수 — 형식별 검증은 액션에서(아래) 수행.
     problem: z.string().trim().max(2000).default(""),
@@ -555,6 +556,23 @@ export async function createArchive(
     formulaBody = {
       format: "free",
       content,
+      problem: "",
+      hypothesis: "",
+      tools: [],
+      process: "",
+      result: "",
+      timeSaved: "",
+    };
+  } else if (parsed.data.format === "ai") {
+    // AI 작성 — 권한 필요(송근일/승인). 마크다운 그대로 저장(Markdown 컴포넌트가 XSS-safe 렌더).
+    if (!(await canAddArticle(user.id))) {
+      return fail("AI 작성은 권한이 필요해요. 권한을 먼저 요청해주세요.");
+    }
+    const md = (f.content ?? "").trim();
+    if (md.length < 1) return fail("초안을 생성하거나 내용을 입력해 주세요.");
+    formulaBody = {
+      format: "ai",
+      content: md,
       problem: "",
       hypothesis: "",
       tools: [],

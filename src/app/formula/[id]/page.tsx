@@ -290,6 +290,11 @@ export default async function FormulaDetailPage({ params }: PageProps) {
                 </div>
               )}
             </>
+          ) : post.formula && post.formula.format === "ai" ? (
+            // AI 작성 — 마크다운(표/차트). Markdown 컴포넌트가 React 엘리먼트로 안전 렌더.
+            <div className="d-block">
+              <Markdown content={post.formula.content ?? ""} />
+            </div>
           ) : post.formula && post.formula.format === "free" ? (
             // 자유 형식 — 작성한 HTML 그대로(렌더 시 재새니타이즈, 심층 방어)
             <div className="d-block">

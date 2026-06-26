@@ -57,9 +57,24 @@ export function FormulaCard({
   const isCardnews = post.postType === "cardnews";
   const url = href ?? `/formula/${post.id}`;
 
+  // free(HTML)/ai(마크다운) 본문에서 카드 티저용 평문 앞부분 추출.
+  const plainSnippet = (s: string | null | undefined) =>
+    (s ?? "")
+      .replace(/```[\s\S]*?```/g, " ")
+      .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/&nbsp;/gi, " ")
+      .replace(/[#>*_`~|]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 120);
+
   const summary = isCardnews
     ? post.cardnews?.summary ?? post.oneLiner ?? ""
-    : post.oneLiner ?? post.formula?.problem ?? "";
+    : post.oneLiner ||
+      post.formula?.problem ||
+      plainSnippet(post.formula?.content) ||
+      "";
 
   const cover = isCardnews ? post.cardnews?.coverImageUrl : undefined;
 

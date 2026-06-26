@@ -899,6 +899,37 @@ body {
   font-size: 13px;
 }
 
+/* =============================================================================
+   AI와 함께 써보기 — 초안 편집/미리보기
+   ========================================================================== */
+.ai-write {
+  margin-top: 4px;
+}
+.ai-draft-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.ai-draft-tabs {
+  display: flex;
+  gap: 6px;
+}
+.ai-draft-tabs .fmt-tab {
+  flex: none;
+  padding: 6px 14px;
+  font-size: 13px;
+}
+.ai-draft-preview {
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 16px 18px;
+  background: var(--card);
+  max-height: 480px;
+  overflow-y: auto;
+}
+
 /* ==========================================================================
    모바일 반응형 — globals.css 커스텀 클래스(reference.css 가 다루지 않는 영역) 보정.
    globals 는 layout 에서 reference 보다 먼저 로드되므로, reference 와 겹치는 클래스는
