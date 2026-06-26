@@ -83,6 +83,9 @@ export default async function AccountPage() {
           company: me?.company ?? null,
           bio: me?.bio ?? "",
           interests: me?.interests ?? [],
+          github: me?.github ?? null,
+          homepage: me?.homepage ?? null,
+          blog: me?.blog ?? null,
         }}
       />
 

@@ -125,6 +125,20 @@ export interface ActivityStats {
   formulaCount: number; // 본인이 작성한 글(Formula) 수
   likesReceived: number; // 본인 글이 받은 좋아요 수
   projectCount: number; // 프로젝트 완주 (시드/관리값)
+  // --- 신뢰 모델 확장 신호 (optional, 없으면 0/false 취급) ---
+  verifiedFormulaCount?: number; // ✓검증된 공식 수
+  articleFormulaCount?: number; // 아티클 참고해 만든 공식(relatedArticleId)
+  completedActivityCount?: number; // 모임/스터디 완주(파생). 없으면 projectCount 대체
+  appliedActivityCount?: number;  // 모임 지원 횟수(상태 무관)
+  createdActivityCount?: number;  // 모임 개설 횟수
+  followingCount?: number;        // 팔로잉 수
+  savesReceived?: number; // 내 공식이 저장(북마크)된 수
+  memberSaves?: number; // 멤버 하트(나를 저장)한 사람 수
+  followerCount?: number; // 팔로워 수
+  commentsReceived?: number; // 내 공식이 받은 댓글 수
+  onboarded?: boolean; // 온보딩 완료
+  hasCompany?: boolean; // 소속 기입
+  externalLinkCount?: number; // 외부 링크 연결 수
 }
 
 export interface User {
@@ -136,6 +150,10 @@ export interface User {
   company: string | null;
   bio: string;
   interests: string[];
+  /** 외부 링크 (선택, null 허용) */
+  github: string | null;
+  homepage: string | null;
+  blog: string | null;
   /** 직무 (온보딩에서 선택, JOB_ROLES 권장). null 허용 */
   jobRole: string | null;
   /** 온보딩 완료 플래그 (default false) */

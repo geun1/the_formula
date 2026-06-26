@@ -44,6 +44,10 @@ export const users = pgTable("user", {
   company: text("company"),
   bio: text("bio").notNull().default(""),
   interests: jsonb("interests").$type<string[]>().notNull().default([]),
+  // --- 외부 링크 (선택, nullable) ---
+  github: text("github"),
+  homepage: text("homepage"),
+  blog: text("blog"),
   // --- IA 확장 (nullable / default 보장: 기존 데이터 존재) ---
   jobRole: text("jobRole"), // 직무 (JOB_ROLES 권장), nullable
   onboarded: boolean("onboarded").notNull().default(false),

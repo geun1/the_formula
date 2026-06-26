@@ -157,6 +157,12 @@
 
   /* ===== Formula card ===== */
   .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;}
+  .grid-cats{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;}
+  .grid-cat{padding:4px 12px;border-radius:20px;border:1.5px solid var(--border);background:transparent;font-size:13px;font-weight:600;color:var(--t3);cursor:pointer;transition:all .15s;}
+  .grid-cat:hover{border-color:var(--t2);color:var(--t2);}
+  .grid-cat.active{background:rgba(59,130,246,.12);border-color:rgba(59,130,246,.5);color:#3b82f6;}
+  .grid-more{display:block;width:100%;margin-top:12px;padding:10px;border-radius:10px;background:var(--bg-2);border:none;font-size:14px;font-weight:600;color:var(--t2);cursor:pointer;transition:background .15s,color .15s;}
+  .grid-more:hover{background:var(--bg-3);color:var(--t1);}
   .fcard{
     background:var(--card);border-radius:var(--r);
     padding:20px;box-shadow:var(--shadow);cursor:pointer;position:relative;
@@ -274,15 +280,106 @@
   .ci-reply-btn:hover{color:var(--blue);}
 
   /* ===== Profile ===== */
-  .profile-head{display:flex;align-items:center;gap:18px;flex-wrap:wrap;}
-  .avatar-lg{width:72px;height:72px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:28px;color:#fff;flex-shrink:0;}
-  .profile-head .pn{font-size:22px;font-weight:800;letter-spacing:-.02em;}
-  .profile-head .pr{font-size:14px;color:var(--t3);margin-top:3px;}
+  /* 프로필 히어로 — 좌: 아바타 고정 / 우: 컨텐츠 컬럼 */
+  .profile-hero{display:flex;gap:20px;align-items:flex-start;margin-top:16px;}
+  .profile-info{flex:1;min-width:0;max-width:260px;padding-right:24px;}
+  .profile-gauge{flex:2;min-width:0;}
+  .profile-name-row{display:flex;align-items:center;gap:10px;margin-top:10px;}
+  .avatar-lg{width:80px;height:80px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:28px;color:#fff;flex-shrink:0;overflow:hidden;}
+  .avatar-edit-wrap{position:relative;display:inline-flex;flex-shrink:0;border-radius:50%;overflow:hidden;cursor:pointer;}
+  .avatar-edit-wrap .avatar-lg{flex-shrink:0;}
+  .avatar-edit-bar{position:absolute;bottom:0;left:0;right:0;height:36%;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:700;letter-spacing:.03em;}
+  .pn{font-size:22px;font-weight:800;letter-spacing:-.02em;line-height:1;}
+  .pr-inline{font-size:15px;font-weight:500;color:var(--t3);margin-left:4px;}
+  .profile-hashtags{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;}
+  .profile-hashtag{font-size:13px;color:var(--t3);font-weight:500;}
+  .profile-badges{display:flex;flex-wrap:wrap;gap:20px;margin-bottom:8px;}
+  .profile-badge{display:flex;flex-direction:column;align-items:center;gap:6px;}
+  .profile-badge-emoji{font-size:36px;line-height:1;}
+  .profile-badge-label{font-size:11px;color:var(--t3);font-weight:500;white-space:nowrap;}
+  .badge-help{position:relative;width:17px;height:17px;border-radius:50%;background:var(--bg-2);border:1px solid var(--border);color:var(--t3);font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;cursor:default;user-select:none;flex-shrink:0;}
+  .badge-tooltip{position:absolute;right:0;top:22px;width:260px;background:var(--card);border:1px solid var(--border);border-radius:var(--r-xs);box-shadow:var(--shadow);padding:10px 12px;opacity:0;pointer-events:none;transition:opacity .15s;z-index:20;}
+  .badge-help:hover .badge-tooltip{opacity:1;pointer-events:auto;}
+  .badge-tooltip-title{font-size:11.5px;font-weight:700;color:var(--t2);margin-bottom:7px;}
+  .badge-tooltip-list{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:5px;}
+  .badge-tooltip-list li{font-size:11px;color:var(--t3);line-height:1.5;}
+  .badge-tooltip-desc{font-size:11px;color:var(--t2);line-height:1.6;}
   .profile-bio{font-size:15px;color:var(--t2);margin-top:18px;line-height:1.6;max-width:560px;}
-  .stats{display:flex;gap:28px;margin-top:22px;}
+  .profile-links{display:flex;flex-wrap:nowrap;gap:6px;margin-top:12px;}
+  .profile-link{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:var(--t2);background:var(--bg-2);border-radius:20px;padding:5px 10px;white-space:nowrap;transition:background .15s,color .15s;}
+  .profile-link:hover{background:var(--blue-weak);color:var(--blue);}
+  /* 매너온도 바 — 등급 세그먼트 + 내 위치 마커 + 팁 */
+  @keyframes mt-appear{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+  .mt-card{position:relative;padding:0;opacity:0;width:100%;}
+  .mt-card[data-played="true"]{animation:mt-appear .5s ease-out forwards;}
+  .mt-wrap{position:relative;padding-top:8px;padding-bottom:40px;padding-right:26px;}
+  .mt-track{position:relative;display:flex;height:22px;border-radius:6px;overflow:visible;outline:1.5px solid rgba(0,0,0,.18);}
+  .mt-seg{position:relative;display:flex;align-items:center;justify-content:center;min-width:0;}
+  .mt-seg+.mt-seg{border-left:1.5px solid rgba(0,0,0,.18);}
+  .mt-seg-tooltip{position:absolute;bottom:calc(100% + 7px);left:50%;transform:translateX(-50%);min-width:160px;background:var(--card);border:1px solid var(--border);border-radius:var(--r-xs);box-shadow:var(--shadow);padding:8px 10px;opacity:0;pointer-events:none;transition:opacity .15s;z-index:30;white-space:nowrap;text-align:center;}
+  .mt-seg:hover .mt-seg-tooltip{opacity:1;}
+  .mt-seg-tooltip-name{display:block;font-size:11.5px;font-weight:700;color:var(--t1);margin-bottom:3px;}
+  .mt-seg-tooltip-cond{display:block;font-size:11px;color:var(--t2);margin-bottom:3px;}
+  .mt-seg-tooltip-score{display:block;font-size:10.5px;color:var(--t3);font-weight:600;}
+  .mt-seg-label{font-size:9px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 4px;text-shadow:0 1px 2px rgba(0,0,0,.22);}
+  .mt-marker{position:absolute;top:0;bottom:0;transform:translateX(-50%);pointer-events:none;z-index:1;}
+  .mt-marker-pin{position:absolute;top:-3px;bottom:-3px;left:50%;width:3px;margin-left:-1.5px;border-radius:99px;box-shadow:0 0 0 2px var(--card);}
+  .mt-marker-label{position:absolute;top:calc(100% + 9px);white-space:normal;font-size:11px;font-weight:800;font-variant-numeric:tabular-nums;background:var(--mc);color:#fff;padding:6px 10px;border-radius:8px;pointer-events:none;min-width:80px;max-width:160px;text-align:center;}
+  .mt-marker-label::before{content:'';position:absolute;top:-6px;left:50%;transform:translateX(-50%);border:6px solid transparent;border-bottom-color:var(--mc);border-top-width:0;}
+  .mt-ml-main{display:block;font-size:11px;font-weight:800;}
+  .mt-ml-score{display:block;font-size:10px;font-weight:600;margin-top:3px;opacity:.88;}
+  .mt-ml-cond{display:block;font-size:8.5px;font-weight:600;margin-top:3px;opacity:.82;word-break:keep-all;color:rgba(255,200,190,1);}
+  .mt-ml-cond.met{color:rgba(200,255,210,1);}
+  .mt-scale{position:relative;height:16px;margin-top:5px;}
+  .mt-scale span{position:absolute;font-size:10px;color:var(--t3);font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap;}
+  .mt-help{position:absolute;top:8px;right:0;width:17px;height:17px;border-radius:50%;background:var(--bg-2);border:1px solid var(--border);color:var(--t3);font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;cursor:default;user-select:none;z-index:5;}
+  .mt-tooltip{position:absolute;right:0;top:22px;width:270px;background:var(--card);border:1px solid var(--border);border-radius:var(--r-xs);box-shadow:var(--shadow);padding:14px 16px;opacity:0;pointer-events:none;transition:opacity .15s;z-index:20;}
+  .mt-help:hover .mt-tooltip{opacity:1;pointer-events:auto;}
+  .mt-tooltip-title{font-size:12px;font-weight:700;color:var(--t2);margin-bottom:12px;}
+  .mt-tooltip-list{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:12px;}
+  .mt-tooltip-list li{display:flex;align-items:flex-start;gap:10px;}
+  .mt-tooltip-icon{font-size:14px;flex-shrink:0;width:20px;text-align:center;margin-top:2px;}
+  .mt-tooltip-body{display:flex;flex-direction:column;gap:3px;}
+  .mt-tooltip-label{font-size:12px;font-weight:600;color:var(--t1);}
+  .mt-tooltip-desc{font-size:11px;color:var(--t3);line-height:1.5;word-break:keep-all;white-space:normal;}
+  .stats{display:flex;gap:28px;margin-top:16px;}
+  .stat{text-align:center;}
   .stat .n{font-size:20px;font-weight:800;letter-spacing:-.02em;}
   .stat .l{font-size:12.5px;color:var(--t3);margin-top:2px;font-weight:600;}
   .profile-actions{display:flex;gap:10px;margin-top:24px;}
+  /* 활동 이력 타임라인 */
+  .timeline{display:flex;flex-direction:column;gap:2px;}
+  .tl-item{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:12px;transition:background .15s;}
+  .tl-emoji{font-size:16px;line-height:1;flex-shrink:0;width:22px;text-align:center;}
+  .tl-text{flex:1;min-width:0;font-size:14.5px;color:var(--t1);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .tl-temp{flex-shrink:0;font-size:12px;font-weight:700;color:#22c55e;background:rgba(34,197,94,.1);padding:2px 7px;border-radius:20px;}
+  .tl-at{flex-shrink:0;font-size:12.5px;color:var(--t3);font-weight:600;}
+  /* 지원/참여 모임 — 내 공식과 동일하게 공용 .grid 사용. 셀은 지원상태 pill 부착용 */
+  /* 래퍼를 .fcard(내 공식 카드)와 동일한 박스로 — 테두리 없이 그림자+radius+hover lift. 안쪽 ActivityCard 박스 스타일 제거 */
+  .applied-cell{display:flex;flex-direction:column;background:var(--card);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden;cursor:pointer;transition:transform .2s cubic-bezier(.2,.8,.2,1),box-shadow .2s;}
+  .applied-cell:hover{transform:translateY(-3px);box-shadow:var(--shadow-lift);}
+  .applied-cell>a{border:none!important;border-radius:0!important;box-shadow:none!important;transform:none!important;}
+  .applied-footer{border-top:1px solid var(--border-soft);text-align:center;padding:9px;font-size:11px;font-weight:600;background:var(--bg-2);color:var(--t2);}
+  .applied-cell-accepted .applied-footer{background:var(--blue-weak);color:var(--blue);}
+  .applied-cell-rejected .applied-footer{background:#FEECEC;color:#F03E3E;}
+
+  /* 모임 통합 리스트 */
+  .moim-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;background:var(--card);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden;}
+  .moim-row{display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--border-soft);}
+  .moim-row:last-child{border-bottom:none;}
+  .moim-link{display:flex;align-items:center;gap:8px;flex:1;min-width:0;text-decoration:none;}
+  .moim-icon{font-size:16px;flex-shrink:0;}
+  .moim-type{font-size:11px;font-weight:600;color:var(--t3);flex-shrink:0;}
+  .moim-title{font-size:14px;font-weight:600;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;transition:color .15s;}
+  .moim-link:hover .moim-title{color:var(--accent);}
+  .moim-badge{flex-shrink:0;font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;background:var(--bg-2);color:var(--t3);}
+  .moim-active{background:var(--accent-soft);color:var(--accent);}
+  .moim-pending{background:var(--bg-2);color:var(--t2);}
+  .moim-done{background:var(--green-soft);color:var(--green);}
+
+  .pf-divider{border:none;border-top:1px solid var(--border);margin:32px 0 0;}
+  .pf-signout{margin-top:40px;width:100%;background:none;border:1px solid var(--border);color:var(--t3);font-size:13px;padding:10px;border-radius:var(--r-sm);cursor:pointer;transition:color .15s,border-color .15s;}
+  .pf-signout:hover{color:var(--t1);border-color:var(--t3);}
 
   /* ===== Directory layout ===== */
   .dir-wrap{display:grid;grid-template-columns:192px 1fr;gap:36px;align-items:start;}
@@ -451,7 +548,11 @@
     .pop-slide::-webkit-scrollbar{display:none;}
     .pop-card{flex:0 0 76%;scroll-snap-align:start;}
   }
+  .tag-cols{display:flex;gap:32px;flex-wrap:wrap;}
+  .tag-col{flex:1;min-width:160px;}
   .pf-tags{margin-top:4px;}
+  .pf-tags a{text-decoration:none;}
+  .pf-tags a:hover .chip{background:rgba(59,130,246,.15);border-color:rgba(59,130,246,.4);color:#3b82f6;}
   .pr-links{display:flex;gap:14px;margin-top:8px;}
   .pr-links a{font-size:13px;font-weight:600;color:var(--blue);cursor:pointer;}
   .pr-links a:hover{text-decoration:underline;}

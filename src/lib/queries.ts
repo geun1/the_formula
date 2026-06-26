@@ -45,7 +45,7 @@ import type {
   Tier,
   User,
 } from "@/lib/contract";
-import { computeTrust } from "@/lib/trust";
+import { computeTrust, WEIGHTS } from "@/lib/trust";
 
 // ---- 세션 헬퍼 ----
 /** 현재 로그인 유저 id (없으면 null). 서버 전용. */
@@ -574,16 +574,16 @@ async function tierMapFor(userIds: string[]): Promise<Map<string, Tier>> {
 
 /** 유저별 ActivityStats(SQL 집계) 맵. visitCountBase/projectCount 는 저장값. */
 async function statsFor(userIds: string[]) {
-  const map = new Map<
-    string,
-    {
-      visitCount: number;
-      commentCount: number;
-      formulaCount: number;
-      likesReceived: number;
-      projectCount: number;
-    }
-  >();
+  type StatsRow = {
+    visitCount: number; commentCount: number; formulaCount: number;
+    likesReceived: number; projectCount: number;
+    verifiedFormulaCount: number; completedActivityCount: number; appliedActivityCount: number;
+    createdActivityCount: number; followingCount: number;
+    savesReceived: number; memberSaves: number; followerCount: number;
+    commentsReceived: number; onboarded: boolean; hasCompany: boolean;
+    externalLinkCount: number;
+  };
+  const map = new Map<string, StatsRow>();
   if (!userIds.length) return map;
 
   const urows = await db
@@ -591,79 +591,149 @@ async function statsFor(userIds: string[]) {
       id: users.id,
       visitCountBase: users.visitCountBase,
       projectCount: users.projectCount,
+      onboarded: users.onboarded,
+      company: users.company,
+      github: users.github,
+      blog: users.blog,
+      homepage: users.homepage,
     })
     .from(users)
     .where(inArray(users.id, userIds));
 
   // 본인이 만든 view 이벤트 수
   const viewRows = await db
-    .select({
-      userId: interactions.userId,
-      c: sql<number>`count(*)::int`,
-    })
+    .select({ userId: interactions.userId, c: sql<number>`count(*)::int` })
     .from(interactions)
-    .where(
-      and(
-        inArray(interactions.userId, userIds),
-        eq(interactions.type, "view"),
-      ),
-    )
+    .where(and(inArray(interactions.userId, userIds), eq(interactions.type, "view")))
     .groupBy(interactions.userId);
   const viewBy = new Map(viewRows.map((r) => [r.userId, Number(r.c)]));
 
   // 본인이 쓴 댓글 수
   const cmtRows = await db
-    .select({
-      userId: interactions.userId,
-      c: sql<number>`count(*)::int`,
-    })
+    .select({ userId: interactions.userId, c: sql<number>`count(*)::int` })
     .from(interactions)
-    .where(
-      and(
-        inArray(interactions.userId, userIds),
-        eq(interactions.type, "comment"),
-      ),
-    )
+    .where(and(inArray(interactions.userId, userIds), eq(interactions.type, "comment")))
     .groupBy(interactions.userId);
   const cmtBy = new Map(cmtRows.map((r) => [r.userId, Number(r.c)]));
 
   // 본인이 쓴 글(formula) 수
   const fmRows = await db
-    .select({
-      authorId: posts.authorId,
-      c: sql<number>`count(*)::int`,
-    })
+    .select({ authorId: posts.authorId, c: sql<number>`count(*)::int` })
     .from(posts)
-    .where(
-      and(inArray(posts.authorId, userIds), eq(posts.postType, "formula")),
-    )
+    .where(and(inArray(posts.authorId, userIds), eq(posts.postType, "formula")))
     .groupBy(posts.authorId);
   const fmBy = new Map(fmRows.map((r) => [r.authorId, Number(r.c)]));
 
-  // 본인 글이 받은 좋아요 수(작성자 기준 조인 집계)
+  // 검증된 공식 수
+  const verifiedRows = await db
+    .select({ authorId: posts.authorId, c: sql<number>`count(*)::int` })
+    .from(posts)
+    .where(and(inArray(posts.authorId, userIds), eq(posts.postType, "formula"), eq(posts.verified, true)))
+    .groupBy(posts.authorId);
+  const verifiedBy = new Map(verifiedRows.map((r) => [r.authorId, Number(r.c)]));
+
+  // 본인 글이 받은 좋아요 수
   const likeRows = await db
-    .select({
-      authorId: posts.authorId,
-      c: sql<number>`count(*)::int`,
-    })
+    .select({ authorId: posts.authorId, c: sql<number>`count(*)::int` })
     .from(interactions)
     .innerJoin(posts, eq(posts.id, interactions.postId))
-    .where(
-      and(
-        inArray(posts.authorId, userIds),
-        eq(interactions.type, "like"),
-      ),
-    )
+    .where(and(inArray(posts.authorId, userIds), eq(interactions.type, "like")))
     .groupBy(posts.authorId);
   const likeBy = new Map(likeRows.map((r) => [r.authorId, Number(r.c)]));
 
+  // 본인 글이 받은 댓글 수
+  const crcRows = await db
+    .select({ authorId: posts.authorId, c: sql<number>`count(*)::int` })
+    .from(interactions)
+    .innerJoin(posts, eq(posts.id, interactions.postId))
+    .where(and(inArray(posts.authorId, userIds), eq(interactions.type, "comment")))
+    .groupBy(posts.authorId);
+  const crcBy = new Map(crcRows.map((r) => [r.authorId, Number(r.c)]));
+
+  // 북마크 받은 수 (공식 저장받음)
+  const saveRows = await db
+    .select({ authorId: posts.authorId, c: sql<number>`count(*)::int` })
+    .from(bookmarks)
+    .innerJoin(posts, eq(posts.id, bookmarks.postId))
+    .where(inArray(posts.authorId, userIds))
+    .groupBy(posts.authorId);
+  const saveBy = new Map(saveRows.map((r) => [r.authorId, Number(r.c)]));
+
+  // 멤버 저장 수 (하트)
+  const mSaveRows = await db
+    .select({ memberId: memberBookmarks.memberId, c: sql<number>`count(*)::int` })
+    .from(memberBookmarks)
+    .where(inArray(memberBookmarks.memberId, userIds))
+    .groupBy(memberBookmarks.memberId);
+  const mSaveBy = new Map(mSaveRows.map((r) => [r.memberId, Number(r.c)]));
+
+  // 팔로워 수
+  const followRows = await db
+    .select({ followingId: follows.followingId, c: sql<number>`count(*)::int` })
+    .from(follows)
+    .where(inArray(follows.followingId, userIds))
+    .groupBy(follows.followingId);
+  const followBy = new Map(followRows.map((r) => [r.followingId, Number(r.c)]));
+
+  // 완주한 모임 수 (수락된 지원 + activity.status='done')
+  const completedRows = await db
+    .select({ userId: applications.userId, c: sql<number>`count(*)::int` })
+    .from(applications)
+    .innerJoin(activities, eq(activities.id, applications.activityId))
+    .where(
+      and(
+        inArray(applications.userId, userIds),
+        eq(applications.status, "accepted"),
+        eq(activities.status, "done"),
+      ),
+    )
+    .groupBy(applications.userId);
+  const completedBy = new Map(completedRows.map((r) => [r.userId, Number(r.c)]));
+
+  // 모임 지원 횟수 (상태 무관)
+  const appliedRows = await db
+    .select({ userId: applications.userId, c: sql<number>`count(*)::int` })
+    .from(applications)
+    .where(inArray(applications.userId, userIds))
+    .groupBy(applications.userId);
+  const appliedBy = new Map(appliedRows.map((r) => [r.userId, Number(r.c)]));
+
+  // 모임 개설 횟수
+  const createdRows = await db
+    .select({ ownerId: activities.ownerId, c: sql<number>`count(*)::int` })
+    .from(activities)
+    .where(inArray(activities.ownerId, userIds))
+    .groupBy(activities.ownerId);
+  const createdBy = new Map(createdRows.map((r) => [r.ownerId, Number(r.c)]));
+
+  // 팔로잉 수
+  const followingRows = await db
+    .select({ followerId: follows.followerId, c: sql<number>`count(*)::int` })
+    .from(follows)
+    .where(inArray(follows.followerId, userIds))
+    .groupBy(follows.followerId);
+  const followingBy = new Map(followingRows.map((r) => [r.followerId, Number(r.c)]));
+
   for (const u of urows) {
+    const extLinks = [u.github, u.blog, u.homepage].filter(Boolean).length;
     map.set(u.id, {
       visitCount: (u.visitCountBase ?? 0) + (viewBy.get(u.id) ?? 0),
       commentCount: cmtBy.get(u.id) ?? 0,
       formulaCount: fmBy.get(u.id) ?? 0,
       likesReceived: likeBy.get(u.id) ?? 0,
       projectCount: u.projectCount ?? 0,
+      verifiedFormulaCount: verifiedBy.get(u.id) ?? 0,
+      completedActivityCount: completedBy.get(u.id) ?? 0,
+      appliedActivityCount: appliedBy.get(u.id) ?? 0,
+      createdActivityCount: createdBy.get(u.id) ?? 0,
+      followingCount: followingBy.get(u.id) ?? 0,
+      savesReceived: saveBy.get(u.id) ?? 0,
+      memberSaves: mSaveBy.get(u.id) ?? 0,
+      followerCount: followBy.get(u.id) ?? 0,
+      commentsReceived: crcBy.get(u.id) ?? 0,
+      onboarded: u.onboarded ?? false,
+      hasCompany: !!u.company,
+      externalLinkCount: extLinks,
     });
   }
   return map;
@@ -686,15 +756,10 @@ export async function getProfileLite(
     .limit(1);
   if (!u) return null;
   const stats = await statsFor([userId]);
-  const t = computeTrust(
-    stats.get(userId) ?? {
-      visitCount: 0,
-      commentCount: 0,
-      formulaCount: 0,
-      likesReceived: 0,
-      projectCount: 0,
-    },
-  );
+  const t = computeTrust(stats.get(userId) ?? {
+    visitCount: 0, commentCount: 0, formulaCount: 0,
+    likesReceived: 0, projectCount: 0,
+  });
   return {
     id: u.id,
     name: u.name ?? "익명",
@@ -821,11 +886,8 @@ export async function getMemberDirectory(
 
   return urows.map((u) => {
     const s = stats.get(u.id) ?? {
-      visitCount: 0,
-      commentCount: 0,
-      formulaCount: 0,
-      likesReceived: 0,
-      projectCount: 0,
+      visitCount: 0, commentCount: 0, formulaCount: 0,
+      likesReceived: 0, projectCount: 0,
     };
     const t = computeTrust(s);
     return {
@@ -912,11 +974,8 @@ export async function getProfile(
 
   const stats = await statsFor([targetId]);
   const s = stats.get(targetId) ?? {
-    visitCount: 0,
-    commentCount: 0,
-    formulaCount: 0,
-    likesReceived: 0,
-    projectCount: 0,
+    visitCount: 0, commentCount: 0, formulaCount: 0,
+    likesReceived: 0, projectCount: 0,
   };
   const t = computeTrust(s);
 
@@ -957,6 +1016,9 @@ export async function getProfile(
     company: u.company,
     bio: u.bio,
     interests: (u.interests as string[]) ?? [],
+    github: u.github,
+    homepage: u.homepage,
+    blog: u.blog,
     jobRole: u.jobRole,
     onboarded: u.onboarded,
     isAgent: u.isAgent,
@@ -984,6 +1046,200 @@ export async function getProfile(
   };
 }
 
+// ---- 활동 이력 타임라인 (공개 이벤트만) ----
+/** 프로필 활동 이력 한 건. 내 행동 + 받은 반응을 시간순 통합. */
+export interface ActivityEvent {
+  kind: string;
+  emoji: string;
+  text: string;
+  at: string; // ISO
+  href?: string; // 클릭 시 이동(공식/멤버/모임)
+  tempGain?: number; // 온도 원점수 기여값 (있을 때만 표시)
+}
+
+/**
+ * 유저의 활동 이력을 시간순 통합 반환(최신순 N). 파생 방식(전용 저장 없음).
+ * - 공개: 공식 작성 · 댓글 · 모임 지원 · 팔로우 · 받은 좋아요 · 저장받음
+ * - 사적(includePrivate=true, 본인만): 누른 좋아요 · 저장한 공식 · 저장한 멤버
+ */
+export async function getActivityTimeline(
+  userId: string,
+  opts: { limit?: number; includePrivate?: boolean } = {},
+): Promise<ActivityEvent[]> {
+  const { limit = 20, includePrivate = false } = opts;
+  if (!userId) return [];
+
+  const events: ActivityEvent[] = [];
+  const cut = (s: string, n = 40) => (s.length > n ? s.slice(0, n) + "…" : s);
+
+  // 0) 프로필 채우기 — onboarded 시 기본 온도 부여 [공개]
+  const [uRow] = await db
+    .select({ onboarded: users.onboarded, createdAt: users.createdAt })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  if (uRow?.onboarded)
+    events.push({ kind: "onboarded", emoji: "🌡️", text: "프로필을 채웠어요", at: uRow.createdAt.toISOString(), tempGain: WEIGHTS.onboarded });
+
+  // 1) 작성한 공식 [공개]
+  const authored = await db
+    .select({ id: posts.id, title: posts.title, createdAt: posts.createdAt })
+    .from(posts)
+    .where(and(eq(posts.authorId, userId), eq(posts.postType, "formula")))
+    .orderBy(desc(posts.createdAt))
+    .limit(limit);
+  for (const p of authored)
+    events.push({ kind: "write", emoji: "📝", text: `공식 '${cut(p.title)}' 작성`, at: p.createdAt.toISOString(), href: `/formula/${p.id}` });
+
+  // 2) 내가 단 댓글 [공개]
+  const myComments = await db
+    .select({ title: posts.title, postId: posts.id, createdAt: interactions.createdAt })
+    .from(interactions)
+    .innerJoin(posts, eq(posts.id, interactions.postId))
+    .where(and(eq(interactions.userId, userId), eq(interactions.type, "comment")))
+    .orderBy(desc(interactions.createdAt))
+    .limit(limit);
+  for (const c of myComments)
+    events.push({ kind: "comment", emoji: "💬", text: `'${cut(c.title)}'에 댓글을 남겼어요`, at: c.createdAt.toISOString(), href: `/formula/${c.postId}` });
+
+  // 3) 모임 지원 [공개]
+  const myApps = await db
+    .select({ title: activities.title, actId: activities.id, createdAt: applications.createdAt })
+    .from(applications)
+    .innerJoin(activities, eq(activities.id, applications.activityId))
+    .where(eq(applications.userId, userId))
+    .orderBy(desc(applications.createdAt))
+    .limit(limit);
+  for (const a of myApps)
+    events.push({ kind: "apply", emoji: "🚀", text: `'${cut(a.title)}' 모임에 지원했어요`, at: a.createdAt.toISOString(), href: `/activities/${a.actId}` });
+
+  // 4) 팔로우 [공개]
+  const myFollows = await db
+    .select({ id: users.id, name: users.name, createdAt: follows.createdAt })
+    .from(follows)
+    .innerJoin(users, eq(users.id, follows.followingId))
+    .where(eq(follows.followerId, userId))
+    .orderBy(desc(follows.createdAt))
+    .limit(limit);
+  for (const f of myFollows)
+    events.push({ kind: "follow", emoji: "➕", text: `${f.name ?? "익명"}님을 팔로우했어요`, at: f.createdAt.toISOString(), href: `/profile/${f.id}` });
+
+  // 5) 내 글이 받은 좋아요 [공개·신뢰]
+  const likesRecv = await db
+    .select({ title: posts.title, postId: posts.id, createdAt: interactions.createdAt })
+    .from(interactions)
+    .innerJoin(posts, eq(posts.id, interactions.postId))
+    .where(and(eq(posts.authorId, userId), eq(interactions.type, "like")))
+    .orderBy(desc(interactions.createdAt))
+    .limit(limit);
+  for (const l of likesRecv)
+    events.push({ kind: "like-recv", emoji: "❤️", text: `'${cut(l.title)}'이 좋아요를 받았어요`, at: l.createdAt.toISOString(), href: `/formula/${l.postId}` });
+
+  // 6) 내 글이 저장받음 [공개·신뢰]
+  const savesRecv = await db
+    .select({ title: posts.title, postId: posts.id, createdAt: bookmarks.createdAt })
+    .from(bookmarks)
+    .innerJoin(posts, eq(posts.id, bookmarks.postId))
+    .where(eq(posts.authorId, userId))
+    .orderBy(desc(bookmarks.createdAt))
+    .limit(limit);
+  for (const s of savesRecv)
+    events.push({ kind: "save-recv", emoji: "🔖", text: `'${cut(s.title)}'이 저장됐어요`, at: s.createdAt.toISOString(), href: `/formula/${s.postId}`, tempGain: WEIGHTS.saveReceived });
+
+  // 6-2) 검증된 공식 [공개·신뢰 — verifiedAt 없어 createdAt 근사]
+  const verifiedPosts = await db
+    .select({ id: posts.id, title: posts.title, createdAt: posts.createdAt })
+    .from(posts)
+    .where(and(eq(posts.authorId, userId), eq(posts.postType, "formula"), eq(posts.verified, true)))
+    .orderBy(desc(posts.createdAt))
+    .limit(limit);
+  for (const p of verifiedPosts)
+    events.push({ kind: "verified", emoji: "✅", text: `'${cut(p.title)}' 공식이 검증됐어요`, at: p.createdAt.toISOString(), href: `/formula/${p.id}`, tempGain: WEIGHTS.verifiedFormula });
+
+  // 7~9) 사적 행동 — 본인 마이페이지에서만
+  if (includePrivate) {
+    // 7) 내가 누른 좋아요
+    const myLikes = await db
+      .select({ title: posts.title, postId: posts.id, createdAt: interactions.createdAt })
+      .from(interactions)
+      .innerJoin(posts, eq(posts.id, interactions.postId))
+      .where(and(eq(interactions.userId, userId), eq(interactions.type, "like")))
+      .orderBy(desc(interactions.createdAt))
+      .limit(limit);
+    for (const l of myLikes)
+      events.push({ kind: "like", emoji: "👍", text: `'${cut(l.title)}'에 좋아요를 눌렀어요`, at: l.createdAt.toISOString(), href: `/formula/${l.postId}` });
+
+    // 8) 내가 저장한 공식
+    const myBookmarks = await db
+      .select({ title: posts.title, postId: posts.id, createdAt: bookmarks.createdAt })
+      .from(bookmarks)
+      .innerJoin(posts, eq(posts.id, bookmarks.postId))
+      .where(eq(bookmarks.userId, userId))
+      .orderBy(desc(bookmarks.createdAt))
+      .limit(limit);
+    for (const b of myBookmarks)
+      events.push({ kind: "bookmark", emoji: "🔖", text: `'${cut(b.title)}'을 저장했어요`, at: b.createdAt.toISOString(), href: `/formula/${b.postId}` });
+
+    // 9) 내가 저장한 멤버(하트)
+    const myMemberSaves = await db
+      .select({ id: users.id, name: users.name, createdAt: memberBookmarks.createdAt })
+      .from(memberBookmarks)
+      .innerJoin(users, eq(users.id, memberBookmarks.memberId))
+      .where(eq(memberBookmarks.userId, userId))
+      .orderBy(desc(memberBookmarks.createdAt))
+      .limit(limit);
+    for (const m of myMemberSaves)
+      events.push({ kind: "member-save", emoji: "💜", text: `${m.name ?? "익명"}님을 저장했어요`, at: m.createdAt.toISOString(), href: `/profile/${m.id}` });
+  }
+
+  return events
+    .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
+    .slice(0, limit);
+}
+
+// ---- 지원한 모임/스터디 (마이페이지) ----
+/** 내가 지원한 모임 한 건 — 모임 + 내 지원 상태. */
+export interface AppliedActivity {
+  activity: Activity;
+  status: Application["status"];
+  appliedAt: string;
+}
+
+/** userId 가 지원한 모임 목록(지원 최근순) + 각 지원 상태. */
+export async function getAppliedActivities(
+  userId: string,
+): Promise<AppliedActivity[]> {
+  if (!userId) return [];
+  const rows = await db
+    .select({
+      id: activities.id,
+      type: activities.type,
+      title: activities.title,
+      summary: activities.summary,
+      description: activities.description,
+      status: activities.status,
+      ownerId: activities.ownerId,
+      ownerName: activities.ownerName,
+      tags: activities.tags,
+      capacity: activities.capacity,
+      season: activities.season,
+      createdAt: activities.createdAt,
+      applicantCount: applicantCountSql,
+      appStatus: applications.status,
+      appliedAt: applications.createdAt,
+    })
+    .from(applications)
+    .innerJoin(activities, eq(activities.id, applications.activityId))
+    .where(eq(applications.userId, userId))
+    .orderBy(desc(applications.createdAt));
+
+  return rows.map((r) => ({
+    activity: rowToActivity(r as Parameters<typeof rowToActivity>[0]),
+    status: r.appStatus,
+    appliedAt: r.appliedAt.toISOString(),
+  }));
+}
+
 // =============================================================================
 // 내 저장함
 // =============================================================================
@@ -997,6 +1253,28 @@ export async function getSaved(userId: string): Promise<FeedPost[]> {
     .where(eq(bookmarks.userId, userId))
     .orderBy(desc(bookmarks.createdAt))) as (PostRow & { savedAt: Date })[];
   return rows.map(rowToPost);
+}
+
+/** 북마크한 글의 해시태그 빈도 상위 N개. */
+export async function getTopBookmarkTags(
+  userId: string,
+  limit = 5,
+): Promise<{ tag: string; count: number }[]> {
+  if (!userId) return [];
+  const rows = await db.execute(sql`
+    SELECT tag, count(*)::int AS cnt
+    FROM bookmark b
+    JOIN post p ON p.id = b."postId"
+    CROSS JOIN LATERAL jsonb_array_elements_text(p.tags) AS tag
+    WHERE b."userId" = ${userId}
+    GROUP BY tag
+    ORDER BY cnt DESC
+    LIMIT ${limit}
+  `);
+  return (rows.rows as { tag: string; cnt: number }[]).map((r) => ({
+    tag: r.tag,
+    count: Number(r.cnt),
+  }));
 }
 
 // =============================================================================

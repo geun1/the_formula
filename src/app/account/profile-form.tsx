@@ -19,6 +19,9 @@ export function ProfileForm({
     company: string | null;
     bio: string;
     interests: string[];
+    github: string | null;
+    homepage: string | null;
+    blog: string | null;
   };
 }) {
   const router = useRouter();
@@ -28,6 +31,9 @@ export function ProfileForm({
   const [jobRole, setJobRole] = useState<string>(initial.jobRole ?? "");
   const [company, setCompany] = useState(initial.company ?? "");
   const [bio, setBio] = useState(initial.bio);
+  const [github, setGithub] = useState(initial.github ?? "");
+  const [homepage, setHomepage] = useState(initial.homepage ?? "");
+  const [blog, setBlog] = useState(initial.blog ?? "");
   const [interests, setInterests] = useState<string[]>(initial.interests);
   const [custom, setCustom] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -58,6 +64,9 @@ export function ProfileForm({
         company: company.trim() || null,
         bio: bio.trim(),
         interests,
+        github: github.trim() || null,
+        homepage: homepage.trim() || null,
+        blog: blog.trim() || null,
       });
       if (!res.ok) {
         setError(res.error);
@@ -136,6 +145,39 @@ export function ProfileForm({
           onChange={(e) => setBio(e.target.value)}
           placeholder="어떤 일을 하고, AI로 무엇을 만들고 있는지 적어 주세요."
         />
+      </div>
+
+      <div className="form-grid" style={{ marginTop: 18 }}>
+        <div className="field">
+          <label htmlFor="acc-github">GitHub (선택)</label>
+          <input
+            id="acc-github"
+            className="title-input"
+            value={github}
+            onChange={(e) => setGithub(e.target.value)}
+            placeholder="github.com/username"
+          />
+        </div>
+        <div className="field">
+          <label htmlFor="acc-blog">블로그 (선택)</label>
+          <input
+            id="acc-blog"
+            className="title-input"
+            value={blog}
+            onChange={(e) => setBlog(e.target.value)}
+            placeholder="velog.io/@username"
+          />
+        </div>
+        <div className="field">
+          <label htmlFor="acc-homepage">홈페이지 (선택)</label>
+          <input
+            id="acc-homepage"
+            className="title-input"
+            value={homepage}
+            onChange={(e) => setHomepage(e.target.value)}
+            placeholder="example.com"
+          />
+        </div>
       </div>
 
       <div className="write-step" style={{ marginTop: 32 }}>

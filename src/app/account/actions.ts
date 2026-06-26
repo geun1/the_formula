@@ -15,6 +15,22 @@ import { users } from "@/db/schema";
 import { auth } from "@/auth";
 import type { ActionResult } from "@/app/actions";
 
+// 외부 링크: 선택. 빈값 → null, 스킴 없으면 https:// 자동 보정 후 형식 검증.
+const urlField = z
+  .string()
+  .trim()
+  .max(200)
+  .optional()
+  .nullable()
+  .transform((v) => {
+    const s = (v ?? "").trim();
+    if (!s) return null;
+    return /^https?:\/\//i.test(s) ? s : `https://${s}`;
+  })
+  .refine((v) => v === null || /^https?:\/\/[^\s.]+\.[^\s]+$/.test(v), {
+    message: "올바른 주소를 입력해 주세요.",
+  });
+
 const profileSchema = z.object({
   name: z.string().trim().min(1, "이름을 입력해 주세요.").max(60),
   role: z.string().trim().max(80).default(""),
@@ -22,6 +38,9 @@ const profileSchema = z.object({
   company: z.string().trim().max(80).nullish(),
   bio: z.string().trim().max(600).default(""),
   interests: z.array(z.string().trim().min(1)).max(20).default([]),
+  github: urlField,
+  homepage: urlField,
+  blog: urlField,
 });
 
 export type UpdateProfileInput = {
@@ -31,6 +50,9 @@ export type UpdateProfileInput = {
   company?: string | null;
   bio?: string;
   interests?: string[];
+  github?: string | null;
+  homepage?: string | null;
+  blog?: string | null;
 };
 
 /** 내 프로필 편집 저장. 세션 유저 본인만. */
@@ -58,6 +80,9 @@ export async function updateProfile(
       company: parsed.data.company ?? null,
       bio: parsed.data.bio,
       interests: parsed.data.interests,
+      github: parsed.data.github,
+      homepage: parsed.data.homepage,
+      blog: parsed.data.blog,
     })
     .where(eq(users.id, userId));
 
