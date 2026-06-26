@@ -12,7 +12,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
-    "db:seed": "node --env-file=.env.local --import tsx src/db/seed.ts"
+    "db:seed": "node --env-file=.env.local --import tsx src/db/seed.ts",
+    "crawl:check": "tsx scripts/crawl-check.ts"
   },
   "dependencies": {
     "@ai-sdk/google": "^3.0.83",

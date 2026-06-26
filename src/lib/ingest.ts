@@ -22,13 +22,16 @@ import {
   posts,
   interactions,
   bookmarks,
+  users,
   type DbRawArticle,
 } from "@/db/schema";
 import {
   AGENT_CURATOR_ID,
+  AGENT_PERSONAS,
   CATEGORIES,
   type Category,
   type EnrichmentStatus,
+  type InteractionType,
 } from "@/lib/contract";
 
 // ---- 입력 스키마 (크롤러가 보내는 1건의 raw 아티클) ----
@@ -241,10 +244,30 @@ export interface PublishResult {
   error?: string;
 }
 
+/** AI 페르소나 user 행 보장(없으면 생성). 댓글 적재 전 FK 안전 확보. */
+async function ensurePersonaUsers(): Promise<void> {
+  await db
+    .insert(users)
+    .values(
+      AGENT_PERSONAS.map((p) => ({
+        id: p.id,
+        name: p.name,
+        role: p.role,
+        isAgent: true,
+        image: `https://avatar.vercel.sh/${p.id}?text=AI`,
+      })),
+    )
+    .onConflictDoNothing();
+}
+
+const PERSONA_IDS = new Set(AGENT_PERSONAS.map((p) => p.id));
+
 /** AI 서버 → 생성한 cardnews 로 post 발행 + 큐 enriched (멱등). */
 export async function publishArticle(
   rawId: string,
   payload: PublishInput,
+  /** 수집 글 다관점 마중물 댓글(원형 페르소나). 신규 발행 시에만 적재. */
+  personaComments: { personaId: string; body: string }[] = [],
 ): Promise<PublishResult> {
   const [raw] = await db
     .select()
@@ -304,6 +327,27 @@ export async function publishArticle(
       error: null,
     })
     .where(eq(rawArticles.id, rawId));
+
+  // 다관점 페르소나 댓글 적재(신규 발행 시에만). 실패해도 발행은 유지.
+  const valid = personaComments.filter((c) => PERSONA_IDS.has(c.personaId));
+  if (valid.length) {
+    try {
+      await ensurePersonaUsers();
+      await db.insert(interactions).values(
+        valid.map((c) => ({
+          postId: post.id,
+          userId: c.personaId,
+          type: "comment" as InteractionType,
+          body: c.body,
+        })),
+      );
+    } catch (e) {
+      console.warn(
+        "[persona] 댓글 적재 실패(발행은 완료):",
+        e instanceof Error ? e.message : e,
+      );
+    }
+  }
 
   return {
     ok: true,

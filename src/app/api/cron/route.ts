@@ -18,7 +18,8 @@ import {
   failArticle,
   getQueueStats,
 } from "@/lib/ingest";
-import { enrichArticle } from "@/lib/cardnews";
+import { enrichArticle, generatePersonaComments } from "@/lib/cardnews";
+import { loadSourceConditionals, recordCrawlOutcomes } from "@/lib/source-state";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -51,16 +52,25 @@ export async function GET(req: NextRequest) {
   // ── 1) 수집 → 큐 ─────────────────────────────────────────────────
   if (!enrichOnly) {
     try {
+      // 이전 실행의 조건부 GET 검증자 로드(실패해도 전체 fetch 로 진행).
+      const conditional = await loadSourceConditionals().catch(() => undefined);
       const crawl = await crawlSources({
         maxPerSource: Number(sp.get("perSource") ?? 8),
         lookbackDays: Number(sp.get("lookbackDays") ?? 4),
         totalCap: Number(sp.get("totalCap") ?? 60),
         filterRelevance: sp.get("filter") !== "0",
+        conditional,
       });
+      // 소스 헬스 + 다음 검증자 적재(실패해도 수집 결과엔 영향 없음).
+      await recordCrawlOutcomes(crawl.perSource).catch((e) =>
+        console.warn("[cron] source-state 저장 실패:", e instanceof Error ? e.message : e),
+      );
       const ingest = await ingestArticles(crawl.inputs);
+      const notModified = crawl.perSource.filter((p) => p.notModified).length;
       result.collect = {
         crawled: crawl.inputs.length,
         fullFetched: crawl.fullFetched,
+        notModified,
         queued: ingest.queued,
         skipped: ingest.skipped,
         perSource: crawl.perSource,
@@ -88,11 +98,16 @@ export async function GET(req: NextRequest) {
             sourceName: raw.sourceName,
             fallbackCategory: raw.category ?? "ai",
           });
-          const pub = await publishArticle(raw.id, {
-            cardnews: enr.cardnews,
-            category: enr.category,
-            tags: enr.tags,
+          // 다관점 토론 마중물(원형 페르소나) — 실패해도 [] 로 발행 비차단.
+          const persona = await generatePersonaComments({
+            originalTitle: raw.originalTitle,
+            rawContent: raw.rawContent,
           });
+          const pub = await publishArticle(
+            raw.id,
+            { cardnews: enr.cardnews, category: enr.category, tags: enr.tags },
+            persona,
+          );
           if (pub.ok) {
             published.push({ id: raw.id, postId: pub.postId, title: raw.originalTitle });
           } else {

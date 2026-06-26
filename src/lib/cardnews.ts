@@ -10,7 +10,8 @@ import { generateObject } from "ai";
 import { google } from "@ai-sdk/google";
 import { z } from "zod";
 import type { CardNews, Category } from "@/lib/contract";
-import { CATEGORIES, categories } from "@/lib/contract";
+import { CATEGORIES, categories, AGENT_PERSONAS } from "@/lib/contract";
+import { getSourceKind } from "@/lib/sources";
 
 /** 기본 모델 — Gemini 3.5 Flash. 환경변수 CARDNEWS_MODEL 로 오버라이드 가능. */
 const CARDNEWS_MODEL = process.env.CARDNEWS_MODEL ?? "gemini-3.5-flash";
@@ -86,24 +87,53 @@ export async function enrichArticle(
     model = CARDNEWS_MODEL,
   } = input;
 
+  // 해외 테크 블로그(techblog)는 저작권상 전문 번역 대신 "발췌 + 논평 요약".
+  // 그 외 소스는 기존 동작(충실 재구성) 유지. 규칙: docs/commentary-guide.md.
+  const commentary = getSourceKind(sourceName ?? "") === "techblog";
+
+  const system = commentary
+    ? "당신은 해외 테크 블로그를 한국 실무자에게 **비판적으로 리뷰**하는 AI 에디터입니다. " +
+      "단순 요약·번역이 아니라 '왜 이렇게 설계했나 / 실제로 쓸 만한가'를 따지는 리뷰어예요. " +
+      "저작권 보호를 위해 원문을 전문 번역·복제하지 않습니다 — 핵심을 한국어로 **재서술**하고, " +
+      "꼭 필요한 문장만 짧게 인용하며, 트레이드오프·수치의 측정조건·재현 가능성·실무 적용을 " +
+      "근거 있게 평가합니다. 원문이 본문의 주(主)가 되면 안 되고, 전체 내용은 원문 링크로 유도합니다. " +
+      `카테고리는 다음 중 하나로 정확히 분류하세요: ${CATEGORY_GUIDE}.`
+    : "당신은 해외/국내 AI·AX 아티클을 한국 실무자용으로 옮기는 AI 에디터입니다. " +
+      "요약가가 아니라 **번역·재구성 에디터**입니다 — 원문의 내용을 압축해 버리지 말고, " +
+      "원문이 담은 핵심 정보·맥락·수치·예시를 거의 빠짐없이 한국어로 충실히 옮깁니다. " +
+      "다만 자연스러운 한국어 해요체로 읽기 좋게 다듬고, 소제목으로 구조화합니다. " +
+      `카테고리는 다음 중 하나로 정확히 분류하세요: ${CATEGORY_GUIDE}.`;
+
+  const prompt = commentary
+    ? `다음 해외 테크 블로그 글을 한국 실무자용 '상세 리뷰 카드'로 작성해줘. ` +
+      `전문 번역이 아니라 재서술+비판적 리뷰야. body 는 아래 마크다운 구조를 따라줘:\n` +
+      `- '## 한눈에 (TL;DR)' — 무엇을 발표/주장, 왜 중요, 핵심 수치. 5~7문장 압축\n` +
+      `- '## 핵심 주장' — 글이 내세우는 주장/기여 2~4개를 불릿으로(예: 성능 N% 개선, X 최초 지원)\n` +
+      `- '## 어떻게 풀었나' — 접근·설계를 네 한국어로 재서술. 원문 문단 통째 번역 금지. ` +
+      `핵심 문장만 1~3개 '> ' 인용으로 짧게. 수치 비교는 표/차트(\`\`\`chart) 활용(원문 수치만)\n` +
+      `- '## 뜯어보기' — 비판적 검토: 설계의 트레이드오프 / 주장 수치의 측정 조건이 공정한가 / ` +
+      `마케팅과 실제 기여의 경계 / 코드·벤치마크 공개로 재현·검증 가능한가\n` +
+      `- '## 실무 적용' — 한국 실무자가 도입 시 걸림돌과 다음 행동(또는 더 읽을 자료)\n` +
+      `- '## 한 줄 평' — 핵심 주장 한 줄 + 가장 미심쩍거나 과장으로 보이는 지점 1개\n` +
+      `- 마지막 줄: '> 전문은 원문 출처에서 확인하세요.'\n` +
+      `'뜯어보기'의 의심도 본문 근거로만, 없는 사실·수치 창작 금지. summary 는 2~3문장 티저, 해요체.\n\n` +
+      `제목: ${originalTitle}\n` +
+      (sourceName ? `출처: ${sourceName}\n` : "") +
+      `\n본문:\n${rawContent.slice(0, 30000)}`
+    : `다음 아티클을 한국어로 충실히 재구성해줘(요약 아님 — 원문 내용을 거의 유지). ` +
+      `summary 는 짧은 티저, body 는 원문 분량에 맞춰 충분히 길고 자세하게.\n\n` +
+      `제목: ${originalTitle}\n` +
+      (sourceName ? `출처: ${sourceName}\n` : "") +
+      `\n본문:\n${rawContent.slice(0, 30000)}`;
+
   try {
     const { object } = await generateObject({
       model: google(model),
       schema: cardNewsTextSchema,
       // 본문이 길어 출력이 잘리지 않도록 충분히 크게(표·차트 포함).
       maxOutputTokens: 16384,
-      system:
-        "당신은 해외/국내 AI·AX 아티클을 한국 실무자용으로 옮기는 AI 에디터입니다. " +
-        "요약가가 아니라 **번역·재구성 에디터**입니다 — 원문의 내용을 압축해 버리지 말고, " +
-        "원문이 담은 핵심 정보·맥락·수치·예시를 거의 빠짐없이 한국어로 충실히 옮깁니다. " +
-        "다만 자연스러운 한국어 해요체로 읽기 좋게 다듬고, 소제목으로 구조화합니다. " +
-        `카테고리는 다음 중 하나로 정확히 분류하세요: ${CATEGORY_GUIDE}.`,
-      prompt:
-        `다음 아티클을 한국어로 충실히 재구성해줘(요약 아님 — 원문 내용을 거의 유지). ` +
-        `summary 는 짧은 티저, body 는 원문 분량에 맞춰 충분히 길고 자세하게.\n\n` +
-        `제목: ${originalTitle}\n` +
-        (sourceName ? `출처: ${sourceName}\n` : "") +
-        `\n본문:\n${rawContent.slice(0, 30000)}`,
+      system,
+      prompt,
     });
 
     return {
@@ -127,6 +157,82 @@ export async function enrichArticle(
       category: fallbackCategory,
       tags: cardnews.keywords.slice(0, 5),
     };
+  }
+}
+
+// =============================================================================
+// AI 페르소나 다관점 댓글 — 수집 글에 토론 마중물 자동 생성
+// =============================================================================
+// 실존 인물 사칭이 아닌 원형(archetype) 페르소나. 본문 근거로만 작성하고 각 댓글은
+// 사람에게 답을 던지는 질문으로 끝나 멤버 참여를 유도한다. 규칙: docs/persona-comments-guide.md.
+// 생성 실패는 [] 로 graceful — 발행을 막지 않는다.
+
+export interface PersonaComment {
+  personaId: string;
+  body: string;
+}
+
+const personaIds = AGENT_PERSONAS.map((p) => p.id) as [string, ...string[]];
+const personaCommentsSchema = z.object({
+  comments: z
+    .array(
+      z.object({
+        personaId: z.enum(personaIds),
+        body: z
+          .string()
+          .min(20)
+          .max(600)
+          .describe(
+            "해당 페르소나 관점의 한국어 댓글(해요체). 2~4문장. 글의 구체 지점을 짚고 " +
+              "마지막은 사람에게 던지는 열린 질문으로 끝낼 것. 본문에 없는 사실 창작 금지.",
+          ),
+      }),
+    )
+    .max(AGENT_PERSONAS.length),
+});
+
+const PERSONA_GUIDE = AGENT_PERSONAS.map(
+  (p) => `- ${p.id} — ${p.name}(${p.role}): ${p.lens}`,
+).join("\n");
+
+/**
+ * 수집 글 → 원형 페르소나별 다관점 댓글. 각 페르소나 1개씩.
+ * AI 호출 실패 시 [] (발행 비차단).
+ */
+export async function generatePersonaComments(input: {
+  originalTitle: string;
+  rawContent: string;
+  model?: string;
+}): Promise<PersonaComment[]> {
+  const { originalTitle, rawContent, model = CARDNEWS_MODEL } = input;
+  try {
+    const { object } = await generateObject({
+      model: google(model),
+      schema: personaCommentsSchema,
+      maxOutputTokens: 2048,
+      system:
+        "당신은 커뮤니티 토론을 여는 에디터입니다. 아래 원형 페르소나(개발/비개발 직군 혼합) 중 " +
+        "이 글과 가장 관련 있는 **2~4명**을 골라, 각자 관점의 댓글을 하나씩 만듭니다. " +
+        "이들은 실존 인물이 아니라 관점의 의인화이고, 각자 고유 영어 닉네임을 씁니다. " +
+        "기술 깊은 글이면 기술 페르소나(Ada/Theo/Max)가, 디자인·사용자·시장·도입 얘기가 있으면 " +
+        "비개발 페르소나(Dana/Leo)도 참여하세요. 각 댓글은 (1) 글의 구체적 내용을 근거로 하고(창작 금지), " +
+        "(2) 해요체로 2~4문장, (3) 반드시 사람에게 답을 청하는 열린 질문으로 끝나 멤버의 댓글을 유도합니다.\n" +
+        `페르소나(personaId — 닉네임(직군): 렌즈):\n${PERSONA_GUIDE}`,
+      prompt:
+        `다음 글에 대해, 관련 있는 페르소나 2~4명을 골라 각자 댓글을 작성해줘.\n\n제목: ${originalTitle}\n\n` +
+        `본문:\n${rawContent.slice(0, 12000)}`,
+    });
+    // 스키마상 personaId 는 유효하지만, 중복 페르소나는 첫 항목만 채택.
+    const seen = new Set<string>();
+    return object.comments.filter((c) =>
+      seen.has(c.personaId) ? false : (seen.add(c.personaId), true),
+    );
+  } catch (err) {
+    console.warn(
+      "[persona] 댓글 생성 실패(건너뜀):",
+      err instanceof Error ? err.message : err,
+    );
+    return [];
   }
 }
 

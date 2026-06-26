@@ -16,6 +16,10 @@ import type { ArticleInput } from "@/lib/ingest";
 const FULLTEXT_THRESHOLD = 1500;
 // 가공에 넘길 본문 최대 길이(Gemini 3.5 Flash 는 대용량 컨텍스트 — 넉넉히).
 const MAX_RAW = 40000;
+// 관련성 판정에 쓸 리드(본문 앞부분) 길이. 장문 엔지니어링 블로그(2만자+)는
+// 본문 깊숙이 "automation/agents" 같은 단어가 우연히 섞여 오탐이 나므로,
+// "글이 실제로 AI 를 다루는가"를 제목 + 리드에서만 판정한다.
+const RELEVANCE_LEAD = 700;
 
 const UA = "Mozilla/5.0 (compatible; TheFormulaBot/1.0; +https://the-formula-silk.vercel.app)";
 
@@ -84,12 +88,14 @@ function ogImage(html: string, baseUrl: string): string | null {
 // email/again/available 같은 단어에 오탐하지 않음. 한국어/긴 영어는 substring.
 // ASCII 약어 경계 매칭(\b 는 ASCII 토큰에 정확).
 const LATIN_RE =
-  /\b(a\.?i|ax|llm|gpt|chatgpt|claude|gemini|anthropic|openai|deepmind|agentic|agents?|copilot|machine\s+learning|deep\s+learning|generative|transformers?|embeddings?|fine[- ]?tun\w*|reasoning|neural|vectors?|rag|mcp|automation|prompts?)\b/i;
+  /\b(a\.?i|ax|ml|llm|gpt|chatgpt|claude|gemini|anthropic|openai|deepmind|agentic|agents?|copilot|machine\s+learning|deep\s+learning|generative|transformers?|embeddings?|fine[- ]?tun\w*|reasoning|neural|vectors?|rag|mcp|automation|prompts?|recommend\w*|personaliz\w*|ranking|inference|classif\w*|diffusion)\b/i;
 // 한국어 등은 부분 문자열로 충분(경계 이슈 없음).
 const KO_TERMS = [
   "인공지능", "머신러닝", "딥러닝", "에이전트", "에이전틱", "프롬프트", "생성형",
   "트랜스포머", "임베딩", "파인튜닝", "코파일럿", "추론", "뉴럴", "벡터",
   "워크플로우", "자동화", "거대언어모델", "초거대",
+  // AX(AI 활용·전환) — 서비스 정체성. 영문 "AX"/"AI"는 LATIN_RE 가 잡고, 한국어 표기 보강.
+  "에이엑스", "AI 전환", "AI 도입", "디지털 전환", "AI 활용",
 ];
 
 /** HTML → 플레인 텍스트(정규식). 스크립트/스타일 제거, 태그 제거, 엔티티 일부 복원. */
@@ -145,29 +151,84 @@ export interface CrawlOptions {
   fullText?: boolean;
   /** 특정 소스만(이름) — 미지정시 전체 */
   only?: string[];
+  /**
+   * 소스별 조건부 GET 헤더(이전 실행에서 저장). 있으면 If-None-Match/
+   * If-Modified-Since 로 보내 304(미변경)면 다운로드를 건너뜀.
+   * crawler 는 DB-free — cron 이 source_state 에서 읽어 주입한다.
+   */
+  conditional?: Map<string, { etag?: string; lastModified?: string }>;
+}
+
+export interface SourceOutcome {
+  name: string;
+  fetched: number;
+  kept: number;
+  error?: string;
+  /** 마지막 HTTP 상태(200/304). 에러면 undefined */
+  status?: number;
+  /** 304 — 미변경으로 다운로드 생략 */
+  notModified?: boolean;
+  /** 응답 ETag / Last-Modified (다음 실행 조건부 GET 용). 304 면 기존 값 에코 */
+  etag?: string | null;
+  lastModified?: string | null;
+  /** 이 피드의 최신 항목 발행일(ISO) — stale 감지용 */
+  newestItemDate?: string | null;
 }
 
 export interface CrawlResult {
   inputs: ArticleInput[];
-  perSource: { name: string; fetched: number; kept: number; error?: string }[];
+  perSource: SourceOutcome[];
   /** 전문 추출에 성공한 항목 수 */
   fullFetched: number;
 }
 
-async function fetchFeed(source: Source): Promise<FeedItem[]> {
+interface FeedFetch {
+  items: FeedItem[];
+  status: number;
+  notModified: boolean;
+  etag: string | null;
+  lastModified: string | null;
+}
+
+async function fetchFeed(
+  source: Source,
+  cond?: { etag?: string; lastModified?: string },
+): Promise<FeedFetch> {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), 15000);
   try {
+    const headers: Record<string, string> = {
+      "User-Agent": UA,
+      Accept: "application/rss+xml, application/atom+xml, application/xml, text/xml, */*",
+    };
+    if (cond?.etag) headers["If-None-Match"] = cond.etag;
+    if (cond?.lastModified) headers["If-Modified-Since"] = cond.lastModified;
     const res = await fetch(source.url, {
-      headers: { "User-Agent": UA, Accept: "application/rss+xml, application/atom+xml, application/xml, text/xml, */*" },
+      headers,
       signal: ctrl.signal,
-      // 캐시 무력화 — 매번 최신
+      // 조건부 GET 을 직접 다루므로 fetch 캐시는 끔.
       cache: "no-store",
     });
+    // 304 — 미변경. 다운로드/파싱 생략, 기존 검증자(etag/lm)를 에코.
+    if (res.status === 304) {
+      return {
+        items: [],
+        status: 304,
+        notModified: true,
+        etag: cond?.etag ?? null,
+        lastModified: cond?.lastModified ?? null,
+      };
+    }
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const xml = await res.text();
     const feed = await parser.parseString(xml);
-    return (feed.items ?? []) as FeedItem[];
+    return {
+      items: (feed.items ?? []) as FeedItem[],
+      status: res.status,
+      notModified: false,
+      etag: res.headers.get("etag"),
+      lastModified: res.headers.get("last-modified"),
+    };
   } finally {
     clearTimeout(t);
   }
@@ -255,6 +316,7 @@ export async function crawlSources(opts: CrawlOptions = {}): Promise<CrawlResult
     filterRelevance = true,
     fullText = true,
     only,
+    conditional,
   } = opts;
 
   const since = Date.now() - lookbackDays * 24 * 60 * 60 * 1000;
@@ -267,8 +329,12 @@ export async function crawlSources(opts: CrawlOptions = {}): Promise<CrawlResult
   const candidates: Candidate[] = [];
 
   // 1) 소스 병렬 RSS fetch(개별 실패 격리) → 후보 수집(관련성 필터까지)
+  //    이전 실행의 etag/last-modified 가 있으면 조건부 GET → 304 면 스킵.
   const settled = await Promise.allSettled(
-    sources.map(async (s) => ({ s, items: await fetchFeed(s) })),
+    sources.map(async (s) => ({
+      s,
+      res: await fetchFeed(s, conditional?.get(s.name)),
+    })),
   );
 
   for (let i = 0; i < settled.length; i++) {
@@ -278,7 +344,19 @@ export async function crawlSources(opts: CrawlOptions = {}): Promise<CrawlResult
       perSource.push({ name: s.name, fetched: 0, kept: 0, error: String(r.reason).slice(0, 120) });
       continue;
     }
-    const items = r.value.items;
+    const { items, status, notModified, etag, lastModified } = r.value.res;
+    // 304 — 미변경. 새 후보 없음, 검증자만 그대로 보존.
+    if (notModified) {
+      perSource.push({ name: s.name, fetched: 0, kept: 0, status, notModified: true, etag, lastModified });
+      continue;
+    }
+    // 최신 항목 발행일(stale 감지) — 관련성과 무관하게 전체 항목 기준.
+    let newestTs = 0;
+    for (const it of items) {
+      const ds = it.isoDate ?? it.pubDate;
+      const ts = ds ? new Date(ds).getTime() : NaN;
+      if (!Number.isNaN(ts) && ts > newestTs) newestTs = ts;
+    }
     let kept = 0;
     for (const it of items) {
       if (kept >= maxPerSource || candidates.length >= totalCap) break;
@@ -298,13 +376,23 @@ export async function crawlSources(opts: CrawlOptions = {}): Promise<CrawlResult
       let body = htmlToText(rawHtml);
       if (body.length < 40) body = it.contentSnippet?.trim() || title;
 
-      if (filterRelevance && !isRelevant(`${title} ${body}`)) continue;
+      // 제목 + 리드만으로 관련성 판정(장문 본문의 우연 매칭 오탐 방지).
+      if (filterRelevance && !isRelevant(`${title}\n${body.slice(0, RELEVANCE_LEAD)}`))
+        continue;
 
       seenUrls.add(link);
       candidates.push({ s, link, title, rssBody: body, rssImg: rssImage(it), dateStr });
       kept++;
     }
-    perSource.push({ name: s.name, fetched: items.length, kept });
+    perSource.push({
+      name: s.name,
+      fetched: items.length,
+      kept,
+      status,
+      etag,
+      lastModified,
+      newestItemDate: newestTs ? new Date(newestTs).toISOString() : null,
+    });
   }
 
   // 2) 전문 + 이미지 보강 — RSS 본문이 짧으면(발췌) 원문 URL 따라가 전체/og:image 추출(동시성 5)

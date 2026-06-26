@@ -8,7 +8,9 @@
 // =============================================================================
 import type { Category } from "@/lib/contract";
 
-export type SourceKind = "newsletter" | "blog" | "geeknews";
+// techblog = 해외 테크 기업 엔지니어링 블로그. 저작권상 전문 번역 대신
+// "발췌 + 논평 요약" 모드로 발행한다(enrich 가 kind 로 분기). docs/sourcing-policy.md.
+export type SourceKind = "newsletter" | "blog" | "geeknews" | "techblog";
 
 export interface Source {
   /** 표시용 출처명 (post.sourceName) */
@@ -42,4 +44,19 @@ export const SOURCES: Source[] = [
   { name: "VentureBeat AI", url: "https://venturebeat.com/category/ai/feed/", kind: "blog", category: "insight" },
   { name: "TechCrunch AI", url: "https://techcrunch.com/category/artificial-intelligence/feed/", kind: "blog", category: "insight" },
   { name: "Irrational Exuberance", url: "https://lethain.com/feeds/", kind: "blog", category: "pm" },
+
+  // ── 해외 테크 기업 엔지니어링 블로그 (techblog: 발췌+논평 모드) ──────
+  // 일반 엔지니어링 글이 다수라 AI 관련성 필터를 거쳐 AI/ML 글만 큐에 적재됨.
+  { name: "Netflix Tech Blog", url: "https://netflixtechblog.com/feed", kind: "techblog", category: "dev" },
+  { name: "Pinterest Engineering", url: "https://medium.com/feed/pinterest-engineering", kind: "techblog", category: "dev" },
+  { name: "Meta Engineering", url: "https://engineering.fb.com/feed/", kind: "techblog", category: "dev" },
 ];
+
+const SOURCE_KIND_BY_NAME = new Map<string, SourceKind>(
+  SOURCES.map((s) => [s.name, s.kind]),
+);
+
+/** sourceName 으로 소스 종류 조회(enrich 모드 분기용). 미등록 소스는 undefined. */
+export function getSourceKind(name: string): SourceKind | undefined {
+  return SOURCE_KIND_BY_NAME.get(name);
+}

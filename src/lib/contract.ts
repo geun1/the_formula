@@ -286,3 +286,54 @@ export function isCategory(v: unknown): v is Category {
 
 /** agent(크롤러/카드뉴스) 글의 작성자 — 시드 유저로 존재 */
 export const AGENT_CURATOR_ID = "agent-curator";
+
+/**
+ * AI 토론 페르소나 — 수집 글에 다관점 댓글을 자동 생성하는 원형(archetype) 화자.
+ * 실존 인물 사칭이 아니라 "관점"의 의인화. 각 페르소나는 isAgent user 행으로 존재하고,
+ * 댓글은 interaction(type="comment", userId=persona.id)로 적재된다. 규칙: docs/persona-comments-guide.md.
+ */
+export interface AgentPersona {
+  id: string;
+  /** 고유 영어 닉네임 — 댓글 작성자 표시명 */
+  name: string;
+  /** 직군/관점 라벨(프로필 role·UI 표시용) */
+  role: string;
+  /** 이 페르소나가 글을 보는 렌즈(생성 프롬프트에 주입) */
+  lens: string;
+}
+
+// 개발/비개발 직군을 섞어 다관점 확보. 각 글마다 관련 있는 2~4명만 댓글을 단다.
+export const AGENT_PERSONAS: AgentPersona[] = [
+  {
+    id: "persona-ada",
+    name: "Ada",
+    role: "회의적 연구자",
+    lens: "주장의 근거·평가의 한계·반례를 날카롭게 따집니다.",
+  },
+  {
+    id: "persona-theo",
+    name: "Theo",
+    role: "도입 낙관 실무자",
+    lens: "이 글에서 우리 실무에 바로 적용할 기회를 찾고, 시도를 부추깁니다.",
+  },
+  {
+    id: "persona-max",
+    name: "Max",
+    role: "운영 현실주의자",
+    lens: "비용·운영 부담·실제 규모에서의 ROI 관점에서 봅니다.",
+  },
+  {
+    id: "persona-dana",
+    name: "Dana",
+    role: "프로덕트 디자이너",
+    lens: "비개발 관점 — 사용자 경험·제품에 어떤 의미인지, 일하는 방식이 어떻게 바뀌는지 봅니다.",
+  },
+  {
+    id: "persona-leo",
+    name: "Leo",
+    role: "그로스 마케터",
+    lens: "비개발 관점 — 시장·사용자 채택·비즈니스 임팩트 관점에서 봅니다.",
+  },
+];
+
+export type AgentPersonaId = (typeof AGENT_PERSONAS)[number]["id"];
