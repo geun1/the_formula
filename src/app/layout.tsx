@@ -32,6 +32,14 @@ export default function RootLayout({
           rel="stylesheet"
           href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css"
         />
+        {/* Google Analytics — 웹사이트 분석 agent 활용 목적 */}
+        <script async src="https://www.googletagmanager.com/gtag/js?id=G-3T1X4Z1H28" />
+        <script dangerouslySetInnerHTML={{ __html: `
+          window.dataLayer = window.dataLayer || [];
+          function gtag(){dataLayer.push(arguments);}
+          gtag('js', new Date());
+          gtag('config', 'G-3T1X4Z1H28');
+        `}} />
       </head>
       <body className="min-h-full flex flex-col bg-background text-foreground">
         <Navigation />
