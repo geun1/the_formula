@@ -75,7 +75,10 @@ function ogImage(html: string, baseUrl: string): string | null {
     const c = /content=["']([^"']+)["']/i.exec(m[0]);
     if (c?.[1]) {
       try {
-        return new URL(c[1], baseUrl).toString();
+        const abs = new URL(c[1], baseUrl).toString();
+        // http/https 만 — content 가 javascript:/data:/file: 절대스킴이면 base 무시되고
+        // 그 스킴이 그대로 나오므로(스킴 인젝션) 거부. rssImage 와 동일 정책.
+        if (/^https?:/i.test(abs)) return abs;
       } catch {
         /* skip */
       }
@@ -118,7 +121,7 @@ function htmlToText(html: string): string {
 }
 
 /** 추적 파라미터 제거로 sourceUrl 정규화(중복 제거 키 안정화). */
-function cleanUrl(raw: string): string {
+export function cleanUrl(raw: string): string {
   try {
     const u = new URL(raw);
     [...u.searchParams.keys()].forEach((k) => {
@@ -277,6 +280,62 @@ export async function fetchArticleText(
 ): Promise<string | null> {
   return (await fetchArticle(url, timeoutMs)).text;
 }
+
+/** HTML <head> 에서 og:title / twitter:title / <title> 추출. */
+function ogTitle(html: string): string | null {
+  const re = /<meta[^>]+(?:property|name)=["'](?:og:title|twitter:title)["'][^>]*>/i;
+  const m = re.exec(html);
+  if (m) {
+    const c = /content=["']([^"']+)["']/i.exec(m[0]);
+    if (c?.[1]?.trim()) return c[1].trim();
+  }
+  const t = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(html);
+  return t?.[1]?.replace(/\s+/g, " ").trim() || null;
+}
+
+/**
+ * 단일 URL → {제목, 본문, 대표이미지}. 수동 '아티클 추가'용.
+ * fetchArticle 과 동일한 fetch + Readability + og:image 파이프라인에 **제목 추출**만 더했다.
+ * (일일 크론은 RSS 에서 제목을 얻지만, 임의 URL 은 본문에서 직접 추출해야 함.)
+ * 비HTML/추출 실패/본문이 너무 짧으면 null.
+ */
+export async function fetchArticleForIngest(
+  url: string,
+  timeoutMs = 14000,
+): Promise<{ title: string; text: string; image: string | null } | null> {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, {
+      headers: { "User-Agent": UA, Accept: "text/html,application/xhtml+xml,*/*" },
+      signal: ctrl.signal,
+      cache: "no-store",
+      redirect: "follow",
+    });
+    if (!res.ok) return null;
+    if (!(res.headers.get("content-type") || "").includes("html")) return null;
+    const html = await res.text();
+    const image = ogImage(html, res.url || url);
+    const { document } = parseHTML(html);
+    const article = new Readability(document as unknown as Document, {
+      charThreshold: 200,
+    }).parse();
+    const text = article?.textContent
+      ? article.textContent.replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim()
+      : "";
+    if (text.length <= 200) return null; // 본문 추출 실패(차단/JS 렌더/비기사 페이지 등)
+    const title =
+      (article?.title && article.title.trim()) || ogTitle(html) || "제목 없음";
+    return { title: title.slice(0, 300), text, image };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+/** 가공에 넘길 본문 최대 길이(crawlSources 와 동일 기준). */
+export const MAX_RAW_CONTENT = MAX_RAW;
 
 /** 동시성 제한 병렬 매핑. */
 async function mapLimit<T, R>(
