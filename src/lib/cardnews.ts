@@ -209,7 +209,7 @@ export async function generatePersonaComments(input: {
     const { object } = await generateObject({
       model: google(model),
       schema: personaCommentsSchema,
-      maxOutputTokens: 2048,
+      maxOutputTokens: 8192,
       system:
         "당신은 커뮤니티 토론을 여는 에디터입니다. 아래 원형 페르소나(개발/비개발 직군 혼합) 중 " +
         "이 글과 가장 관련 있는 **2~4명**을 골라, 각자 관점의 댓글을 하나씩 만듭니다. " +
@@ -285,7 +285,7 @@ export async function generateCuratorReplies(input: {
     const { object } = await generateObject({
       model: google(model),
       schema: curatorRepliesSchema,
-      maxOutputTokens: 2048,
+      maxOutputTokens: 8192,
       system:
         "당신은 'AI 큐레이터'입니다(이 글을 큐레이션해 올린 에디터). 아래 글에 여러 페르소나가 남긴 " +
         "댓글 각각이 사람에게 던지는 열린 질문으로 끝납니다. 답이 없으면 질문이 공허하므로, 당신이 각 " +
