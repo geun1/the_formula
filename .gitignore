@@ -47,3 +47,7 @@ next-env.d.ts
 
 # 개발 중간 산출물(계획서·리뷰 메모·조사 노트)
 /dev/
+
+# QA 자동화 산출물(Playwright MCP 스냅샷/스크린샷) + env 백업
+/.playwright-mcp/
+.env.local.qabak
