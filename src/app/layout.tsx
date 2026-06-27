@@ -50,7 +50,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ko" className="h-full antialiased">
+    <html lang="ko" className="h-full antialiased" data-scroll-behavior="smooth">
       <head>
         {/* 폰트 CDN(jsdelivr) — 모바일 폰트 다운로드 지연 완화를 위해 미리 연결 */}
         <link rel="preconnect" href="https://cdn.jsdelivr.net" crossOrigin="" />
