@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ShareButton } from "@/components/ui";
+import { ShareButton, ListSearch } from "@/components/ui";
 import { getArchives, type ArchiveParams, type FeedPost } from "@/lib/queries";
 import { categories, type Category } from "@/lib/contract";
 import { avaFor, initialOf, fmtCount } from "@/lib/ref-style";
@@ -212,6 +212,9 @@ export default async function ArchivePage({
         </aside>
 
         <div>
+          <div style={{ marginBottom: 14 }}>
+            <ListSearch placeholder="공식 검색 (제목·요약)" />
+          </div>
           <div className="dir-main-head">
             <div className="dir-title">
               <span>{catLabel}</span>

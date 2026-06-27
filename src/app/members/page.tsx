@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { getMemberDirectory, currentUserId } from "@/lib/queries";
 import { JOB_ROLES } from "@/lib/contract";
+import { ListSearch } from "@/components/ui";
 import { MemberDirGrid } from "./member-grid";
 import { MemberSort } from "./member-sort";
 
@@ -156,6 +157,9 @@ export default async function MembersPage({
 
         {/* 메인 */}
         <div>
+          <div style={{ marginBottom: 14 }}>
+            <ListSearch placeholder="포뮬러 검색 (이름·소개)" />
+          </div>
           <div className="dir-main-head">
             <div className="dir-title">
               <span>{catLabel}</span>
