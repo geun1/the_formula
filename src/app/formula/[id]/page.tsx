@@ -228,6 +228,7 @@ export default async function FormulaDetailPage({ params }: PageProps) {
             initialLikeCount={post.likeCount}
             shareUrl={shareUrl}
             loggedIn={!!viewerId}
+            isOwner={isMe}
           />
 
           {/* 해시태그 */}

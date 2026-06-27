@@ -3,7 +3,8 @@
 import { useState, useTransition } from "react";
 import { Avatar, GradeBadge } from "@/components/ui";
 import type { CommentNode } from "@/lib/contract";
-import { addComment } from "@/app/actions";
+import { useRouter } from "next/navigation";
+import { addComment, deleteComment } from "@/app/actions";
 
 const PAGE = 10; // 최상위 스레드 페이지 크기
 
@@ -110,14 +111,29 @@ function CommentItem({
   node,
   postId,
   loggedIn,
+  viewerId,
   depth = 0,
 }: {
   node: CommentNode;
   postId: string;
   loggedIn: boolean;
+  viewerId: string | null;
   depth?: number;
 }) {
+  const router = useRouter();
   const [replying, setReplying] = useState(false);
+  const [deleting, startDelete] = useTransition();
+  const isOwn = viewerId != null && node.userId === viewerId;
+
+  function remove() {
+    if (!window.confirm("이 댓글을 삭제할까요? 달린 답글도 함께 삭제돼요.")) {
+      return;
+    }
+    startDelete(async () => {
+      const res = await deleteComment(node.id);
+      if (res.ok) router.refresh();
+    });
+  }
 
   return (
     <div className="comment-item">
@@ -139,14 +155,28 @@ function CommentItem({
         </div>
         <p className="ci-text">{node.body}</p>
 
-        {loggedIn && (
-          <button
-            type="button"
-            className="ci-reply-btn"
-            onClick={() => setReplying((v) => !v)}
-          >
-            {replying ? "취소" : "답글"}
-          </button>
+        {(loggedIn || isOwn) && (
+          <span style={{ display: "inline-flex", gap: 12 }}>
+            {loggedIn && (
+              <button
+                type="button"
+                className="ci-reply-btn"
+                onClick={() => setReplying((v) => !v)}
+              >
+                {replying ? "취소" : "답글"}
+              </button>
+            )}
+            {isOwn && (
+              <button
+                type="button"
+                className="ci-reply-btn"
+                onClick={remove}
+                disabled={deleting}
+              >
+                {deleting ? "삭제 중…" : "삭제"}
+              </button>
+            )}
+          </span>
         )}
         {replying && (
           <ReplyForm
@@ -170,6 +200,7 @@ function CommentItem({
                 node={r}
                 postId={postId}
                 loggedIn={loggedIn}
+                viewerId={viewerId}
                 depth={depth + 1}
               />
             ))}
@@ -285,6 +316,7 @@ export function CommentSection({
               node={c}
               postId={postId}
               loggedIn={loggedIn}
+              viewerId={viewerId}
             />
           ))
         )}

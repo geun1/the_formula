@@ -7,7 +7,7 @@ import {
   ShareButton,
   type ToggleResult,
 } from "@/components/ui";
-import { toggleBookmark, duplicateFormula } from "@/app/actions";
+import { toggleBookmark, duplicateFormula, deletePost } from "@/app/actions";
 
 /**
  * 실제 서버액션(ActionResult 반환)을 공유 버튼이 기대하는
@@ -28,6 +28,8 @@ export type FormulaActionsProps = {
   shareUrl: string;
   /** 비로그인 시 안내 */
   loggedIn: boolean;
+  /** 작성자 본인 여부(삭제 노출) */
+  isOwner?: boolean;
 };
 
 /**
@@ -40,6 +42,7 @@ export function FormulaActions({
   initialSaveCount,
   shareUrl,
   loggedIn,
+  isOwner = false,
 }: FormulaActionsProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -54,6 +57,16 @@ export function FormulaActions({
       } else {
         setError(res.ok ? "복제에 실패했어요." : res.error);
       }
+    });
+  }
+
+  function onDelete() {
+    if (!window.confirm("이 공식을 삭제할까요? 되돌릴 수 없어요.")) return;
+    setError(null);
+    startTransition(async () => {
+      const res = await deletePost(postId);
+      if (res.ok) router.push("/archive");
+      else setError(res.error);
     });
   }
 
@@ -87,6 +100,16 @@ export function FormulaActions({
           </a>
         )}
         <ShareButton url={shareUrl} variant="detail" stopPropagation={false} />
+        {isOwner && (
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={onDelete}
+            disabled={pending}
+          >
+            삭제
+          </button>
+        )}
       </div>
       {error && (
         <p style={{ fontSize: 13, color: "#F03E3E", marginTop: 8 }}>{error}</p>

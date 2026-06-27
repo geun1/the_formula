@@ -95,6 +95,14 @@ export default async function AccountPage() {
       <p className="page-sub" style={{ marginTop: 0 }}>
         알림 설정은 곧 제공될 예정이에요.
       </p>
+      <p className="page-sub" style={{ marginTop: 10 }}>
+        {me?.onboarded
+          ? "관심사·직무를 다시 고르고 싶나요? "
+          : "아직 온보딩을 마치지 않았어요. "}
+        <Link href="/onboarding" style={{ color: "var(--blue)", fontWeight: 600 }}>
+          {me?.onboarded ? "온보딩 다시 하기" : "온보딩 완료하기"}
+        </Link>
+      </p>
       <div style={{ marginTop: 20, maxWidth: 380 }}>
         <SignOutButton />
       </div>

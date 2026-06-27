@@ -84,7 +84,7 @@ function DirCard({ member }: { member: MemberCard }) {
         <div className="dc-actions">
           <FollowButton
             targetUserId={member.id}
-            initialFollowing={false}
+            initialFollowing={member.isFollowing}
             action={followAction}
             variant="dc"
           />

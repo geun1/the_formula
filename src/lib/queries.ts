@@ -840,6 +840,8 @@ export interface MemberCard {
   saveCount: number;
   /** 뷰어가 이 멤버를 저장했는지 (뷰어 없으면 false) */
   isBookmarked: boolean;
+  /** 뷰어가 이 멤버를 팔로우 중인지 (뷰어 없으면 false) */
+  isFollowing: boolean;
 }
 
 /** memberId 기준 멤버 저장 수 맵. */
@@ -877,6 +879,26 @@ async function viewerMemberBookmarkSet(
       ),
     );
   for (const r of rows) set.add(r.memberId);
+  return set;
+}
+
+/** 뷰어가 팔로우 중인 멤버 id 집합(주어진 후보 중). 뷰어 없으면 빈 집합. */
+async function viewerFollowingSet(
+  viewerId: string | null | undefined,
+  memberIds: string[],
+): Promise<Set<string>> {
+  const set = new Set<string>();
+  if (!viewerId || !memberIds.length) return set;
+  const rows = await db
+    .select({ followingId: follows.followingId })
+    .from(follows)
+    .where(
+      and(
+        eq(follows.followerId, viewerId),
+        inArray(follows.followingId, memberIds),
+      ),
+    );
+  for (const r of rows) set.add(r.followingId);
   return set;
 }
 
@@ -929,6 +951,7 @@ export async function getMemberDirectory(
   const followerBy = await followerCountMap(ids);
   const saveBy = await memberSaveCountMap(ids);
   const bookmarkedSet = await viewerMemberBookmarkSet(viewerId, ids);
+  const followingSet = await viewerFollowingSet(viewerId, ids);
 
   return urows.map((u) => {
     const s = stats.get(u.id) ?? {
@@ -953,6 +976,7 @@ export async function getMemberDirectory(
       followerCount: followerBy.get(u.id) ?? 0,
       saveCount: saveBy.get(u.id) ?? 0,
       isBookmarked: bookmarkedSet.has(u.id),
+      isFollowing: followingSet.has(u.id),
     } satisfies MemberCard;
   });
 }
