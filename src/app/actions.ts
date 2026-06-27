@@ -35,9 +35,11 @@ import type { FormulaBody } from "@/lib/contract";
 import {
   AGENT_CURATOR_ID,
   ACTIVITY_TYPES,
+  ACTIVITY_STATUSES,
   CATEGORIES,
   DIFFICULTIES,
   type ActivityType,
+  type ActivityStatus,
 } from "@/lib/contract";
 import { generateCardNews } from "@/lib/cardnews";
 
@@ -244,6 +246,36 @@ export async function addComment(
   return ok();
 }
 
+/** 댓글 삭제 — 작성자 본인만. 대댓글(자식)은 parentId FK cascade 로 함께 삭제된다. */
+export async function deleteComment(
+  commentId: string,
+): Promise<ActionResult> {
+  const user = await sessionUser();
+  if (!user) return fail("로그인이 필요해요.");
+  if (!commentId) return fail("잘못된 요청이에요.");
+
+  const [c] = await db
+    .select({ userId: interactions.userId, postId: interactions.postId })
+    .from(interactions)
+    .where(
+      and(eq(interactions.id, commentId), eq(interactions.type, "comment")),
+    )
+    .limit(1);
+  if (!c) return fail("댓글을 찾을 수 없어요.");
+  if (c.userId !== user.id) return fail("본인 댓글만 삭제할 수 있어요.");
+
+  await db.delete(interactions).where(eq(interactions.id, commentId));
+
+  const [p] = await db
+    .select({ postType: posts.postType })
+    .from(posts)
+    .where(eq(posts.id, c.postId))
+    .limit(1);
+  const path = p?.postType === "cardnews" ? "/article/" : "/formula/";
+  revalidatePath(`${path}${c.postId}`);
+  return ok();
+}
+
 // =============================================================================
 // 팔로우 토글
 // =============================================================================
@@ -343,6 +375,84 @@ export async function applyToActivity(
   });
 
   revalidatePath(`/activities/${parsed.data.activityId}`);
+  return ok();
+}
+
+// =============================================================================
+// 모임 소유자 관리 — 지원 승인/반려 · 상태 전환 · 삭제 (모두 소유자 전용)
+// =============================================================================
+
+/** 모임 소유자 검증. 소유자면 activity row, 아니면 null. */
+async function ownActivityOr(activityId: string, userId: string) {
+  const [act] = await db
+    .select({ id: activities.id, ownerId: activities.ownerId })
+    .from(activities)
+    .where(eq(activities.id, activityId))
+    .limit(1);
+  return act && act.ownerId === userId ? act : null;
+}
+
+/** 지원자 수락/반려 — 해당 모임 소유자만. */
+export async function reviewApplication(
+  applicationId: string,
+  decision: "accept" | "reject",
+): Promise<ActionResult> {
+  const user = await sessionUser();
+  if (!user) return fail("로그인이 필요해요.");
+  if (!applicationId) return fail("잘못된 요청이에요.");
+
+  const [app] = await db
+    .select({ id: applications.id, activityId: applications.activityId })
+    .from(applications)
+    .where(eq(applications.id, applicationId))
+    .limit(1);
+  if (!app) return fail("지원 내역을 찾을 수 없어요.");
+  if (!(await ownActivityOr(app.activityId, user.id))) {
+    return fail("이 모임을 관리할 권한이 없어요.");
+  }
+
+  await db
+    .update(applications)
+    .set({ status: decision === "accept" ? "accepted" : "rejected" })
+    .where(eq(applications.id, applicationId));
+
+  revalidatePath(`/activities/${app.activityId}`);
+  return ok();
+}
+
+/** 모임 상태 전환(모집중 → 진행중 → 완료) — 소유자만. */
+export async function updateActivityStatus(
+  activityId: string,
+  status: ActivityStatus,
+): Promise<ActionResult> {
+  const user = await sessionUser();
+  if (!user) return fail("로그인이 필요해요.");
+  if (!ACTIVITY_STATUSES.includes(status)) return fail("잘못된 상태예요.");
+  if (!(await ownActivityOr(activityId, user.id))) {
+    return fail("이 모임을 관리할 권한이 없어요.");
+  }
+
+  await db
+    .update(activities)
+    .set({ status })
+    .where(eq(activities.id, activityId));
+  revalidatePath(`/activities/${activityId}`);
+  revalidatePath("/activities");
+  return ok();
+}
+
+/** 모임 삭제 — 소유자만. 지원 내역은 FK cascade 로 함께 삭제된다. */
+export async function deleteActivity(
+  activityId: string,
+): Promise<ActionResult> {
+  const user = await sessionUser();
+  if (!user) return fail("로그인이 필요해요.");
+  if (!(await ownActivityOr(activityId, user.id))) {
+    return fail("이 모임을 삭제할 권한이 없어요.");
+  }
+
+  await db.delete(activities).where(eq(activities.id, activityId));
+  revalidatePath("/activities");
   return ok();
 }
 
@@ -485,6 +595,27 @@ export async function duplicateFormula(
   revalidatePath("/archive");
   revalidatePath("/profile/me");
   return ok({ id: row.id });
+}
+
+/** 공식/아티클 삭제 — 작성자 본인만. 댓글·북마크 등은 postId FK cascade 로 함께 삭제. */
+export async function deletePost(postId: string): Promise<ActionResult> {
+  const user = await sessionUser();
+  if (!user) return fail("로그인이 필요해요.");
+  if (!postId || typeof postId !== "string") return fail("잘못된 요청이에요.");
+
+  const [p] = await db
+    .select({ authorId: posts.authorId })
+    .from(posts)
+    .where(eq(posts.id, postId))
+    .limit(1);
+  if (!p) return fail("게시물을 찾을 수 없어요.");
+  if (p.authorId !== user.id) return fail("본인 글만 삭제할 수 있어요.");
+
+  await db.delete(posts).where(eq(posts.id, postId));
+  revalidatePath("/archive");
+  revalidatePath("/");
+  revalidatePath("/profile/me");
+  return ok();
 }
 
 // =============================================================================

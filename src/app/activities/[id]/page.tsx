@@ -4,8 +4,9 @@ import { notFound } from "next/navigation";
 import { getActivity } from "@/lib/queries";
 import { auth } from "@/auth";
 import type { ActivityType, ApplicationStatus } from "@/lib/contract";
-import { Avatar, ShareButton } from "@/components/ui";
+import { ShareButton } from "@/components/ui";
 import { ApplyForm } from "../apply-form";
+import { OwnerPanel } from "./owner-panel";
 
 const TYPE_LABEL: Record<ActivityType, string> = {
   study: "스터디",
@@ -168,62 +169,11 @@ export default async function ActivityDetailPage({
 
       {/* 지원 / 소유자 패널 — md-apply 액션 행 */}
       {isOwner ? (
-        <div className="md-section">
-          <div className="md-section-title">내가 만든 모임이에요</div>
-          <p className="md-section-body" style={{ marginBottom: "16px" }}>
-            아래에서 지원자를 확인할 수 있어요.
-          </p>
-          {applicants.length === 0 ? (
-            <p
-              style={{
-                color: "var(--t3)",
-                fontSize: "14px",
-                padding: "16px 0",
-              }}
-            >
-              아직 지원자가 없어요.
-            </p>
-          ) : (
-            <ul style={{ display: "grid", gap: "12px" }}>
-              {applicants.map((a) => (
-                <li
-                  key={a.id}
-                  className="moim-post"
-                  style={{ cursor: "default", marginBottom: 0 }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "10px",
-                    }}
-                  >
-                    <Avatar id={a.userId} name={a.userName} variant="sm" />
-                    <Link
-                      href={`/profile/${a.userId}`}
-                      className="ci-name"
-                      style={{ fontWeight: 700 }}
-                    >
-                      {a.userName}
-                    </Link>
-                    <span
-                      className="mp-badge closed"
-                      style={{ marginLeft: "auto" }}
-                    >
-                      {APP_STATUS_LABEL[a.status]}
-                    </span>
-                  </div>
-                  <p
-                    className="md-section-body"
-                    style={{ marginTop: "10px", whiteSpace: "pre-wrap" }}
-                  >
-                    {a.message}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+        <OwnerPanel
+          activityId={activity.id}
+          status={activity.status}
+          applicants={applicants}
+        />
       ) : myApplication ? (
         <div className="md-section">
           <div
