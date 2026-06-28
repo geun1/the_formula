@@ -324,7 +324,7 @@ export default async function HomePage({
               ))}
             </div>
             {userId && (
-              <div style={{ marginTop: 18, textAlign: "center" }}>
+              <div style={{ marginTop: 18, textAlign: "left" }}>
                 <Link href="/article/new" className="write-btn">
                   + 아티클 추가 요청
                 </Link>
