@@ -138,6 +138,10 @@ export const posts = pgTable(
       (): AnyPgColumn => posts.id,
       { onDelete: "set null" },
     ),
+    // '따라하기'로 참고한 원본 공식(post.id). 내용은 복제하지 않고 출처만 연결. 원본 삭제 시 set null.
+    forkedFromId: text("forkedFromId").references((): AnyPgColumn => posts.id, {
+      onDelete: "set null",
+    }),
     createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
   },
   (t) => [

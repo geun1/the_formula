@@ -569,55 +569,6 @@ export async function completeOnboarding(input: {
   return ok();
 }
 
-// =============================================================================
-// 공식 복제(따라하기) — 원본을 내 초안 formula 로 복제
-// =============================================================================
-export async function duplicateFormula(
-  postId: string,
-): Promise<ActionResult<{ id: string }>> {
-  const user = await sessionUser();
-  if (!user) return fail("로그인이 필요해요.");
-  if (!postId || typeof postId !== "string") return fail("잘못된 요청이에요.");
-
-  const [src] = await db
-    .select()
-    .from(posts)
-    .where(eq(posts.id, postId))
-    .limit(1);
-  if (!src) return fail("공식을 찾을 수 없어요.");
-  if (src.postType !== "formula" || !src.formula) {
-    return fail("복제할 수 있는 공식이 아니에요.");
-  }
-
-  const [row] = await db
-    .insert(posts)
-    .values({
-      postType: "formula",
-      title: `[복제] ${src.title}`,
-      oneLiner: src.oneLiner,
-      category: src.category,
-      tags: (src.tags as string[]) ?? [],
-      difficulty: src.difficulty,
-      workType: src.workType,
-      verified: false, // 복제본은 미검증 초안
-      authorType: "user",
-      authorId: user.id,
-      authorName: user.name,
-      sourceName: null,
-      sourceUrl: null,
-      collectedAt: null,
-      cardnews: null,
-      formula: src.formula,
-      // 원본이 참고하던 아티클 연결을 복제본에도 승계
-      relatedArticleId: src.relatedArticleId ?? null,
-    })
-    .returning({ id: posts.id });
-
-  revalidatePath("/archive");
-  revalidatePath("/profile/me");
-  return ok({ id: row.id });
-}
-
 /** 공식/아티클 삭제 — 작성자 본인만. 댓글·북마크 등은 postId FK cascade 로 함께 삭제. */
 export async function deletePost(postId: string): Promise<ActionResult> {
   const user = await sessionUser();
@@ -665,6 +616,8 @@ const createArchiveSchema = z.object({
   }),
   // 참고한 아티클(cardnews) post.id. 선택.
   relatedArticleId: z.string().trim().min(1).nullish(),
+  // '따라하기'로 참고한 원본 공식(formula) post.id. 내용 복제 없이 출처만 연결. 선택.
+  forkedFromId: z.string().trim().min(1).nullish(),
 });
 
 export type CreateArchiveInput = z.input<typeof createArchiveSchema>;
@@ -697,6 +650,17 @@ export async function createArchive(
       return fail("아티클(카드뉴스)만 참고로 연결할 수 있어요.");
     }
     relatedArticleId = art.id;
+  }
+
+  // forkedFromId 검증 — 존재하고 공식(formula)이어야 출처로 연결.
+  let forkedFromId: string | null = null;
+  if (parsed.data.forkedFromId) {
+    const [src] = await db
+      .select({ id: posts.id, postType: posts.postType })
+      .from(posts)
+      .where(eq(posts.id, parsed.data.forkedFromId))
+      .limit(1);
+    if (src && src.postType === "formula") forkedFromId = src.id;
   }
 
   // ── 형식별 검증 + formula 본문 구성 ──────────────────────────────
@@ -769,6 +733,7 @@ export async function createArchive(
       cardnews: null,
       formula: formulaBody,
       relatedArticleId,
+      forkedFromId,
     })
     .returning({ id: posts.id });
 

@@ -8,7 +8,7 @@ import {
   ConfirmDialog,
   type ToggleResult,
 } from "@/components/ui";
-import { toggleBookmark, duplicateFormula, deletePost } from "@/app/actions";
+import { toggleBookmark, deletePost } from "@/app/actions";
 
 /**
  * 실제 서버액션(ActionResult 반환)을 공유 버튼이 기대하는
@@ -49,16 +49,9 @@ export function FormulaActions({
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  function onDuplicate() {
-    setError(null);
-    startTransition(async () => {
-      const res = await duplicateFormula(postId);
-      if (res.ok && res.data) {
-        router.push(`/formula/${res.data.id}`);
-      } else {
-        setError(res.ok ? "복제에 실패했어요." : res.error);
-      }
-    });
+  // 따라하기 — 내용 복제 없이, 원본을 출처로 연결한 새 공식 작성 화면으로 이동.
+  function onFollow() {
+    router.push(`/archive/new?ref=${postId}`);
   }
 
   function onDelete() {
@@ -86,13 +79,8 @@ export function FormulaActions({
           </a>
         )}
         {loggedIn ? (
-          <button
-            type="button"
-            className="btn btn-ghost"
-            onClick={onDuplicate}
-            disabled={pending}
-          >
-            {pending ? "복제 중…" : "따라하기"}
+          <button type="button" className="btn btn-ghost" onClick={onFollow}>
+            따라하기
           </button>
         ) : (
           <a href="/account" className="btn btn-ghost">

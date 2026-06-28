@@ -427,6 +427,8 @@ export interface FormulaDetail {
   author: ProfileLite | null;
   /** 이 아카이브가 참고한 아티클(cardnews). relatedArticleId 조회. 없으면 null. */
   sourceArticle: FeedPost | null;
+  /** '따라하기'로 참고한 원본 공식(출처). forkedFromId 조회. 없으면 null. */
+  sourceFormula: { id: string; title: string; authorName: string } | null;
 }
 
 /** 작성자 프로필 요약(상세/카드에서 링크용). */
@@ -553,7 +555,23 @@ export async function getFormula(
     if (srcRows.length) sourceArticle = rowToPost(srcRows[0]);
   }
 
-  return { post, comments, isSaved, isLiked, author, sourceArticle };
+  // 참고한 원본 공식(따라하기 출처). forkedFromId → 단건(제목·작성자).
+  let sourceFormula: FormulaDetail["sourceFormula"] = null;
+  const [selfRow] = await db
+    .select({ forkedFromId: posts.forkedFromId })
+    .from(posts)
+    .where(eq(posts.id, id))
+    .limit(1);
+  if (selfRow?.forkedFromId) {
+    const [src] = await db
+      .select({ id: posts.id, title: posts.title, authorName: posts.authorName })
+      .from(posts)
+      .where(eq(posts.id, selfRow.forkedFromId))
+      .limit(1);
+    if (src) sourceFormula = src;
+  }
+
+  return { post, comments, isSaved, isLiked, author, sourceArticle, sourceFormula };
 }
 
 /**

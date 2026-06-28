@@ -45,14 +45,18 @@ function splitList(raw: string, max: number): string[] {
     .slice(0, max);
 }
 
+export type ForkRef = { id: string; title: string; authorName: string };
+
 export function CreateArchiveForm({
   articles,
   prefill,
   aiPermission,
+  forkedFrom = null,
 }: {
   articles: ArticleOption[];
   prefill: ArticleOption | null;
   aiPermission: "admin" | "approved" | "pending" | "rejected" | "none";
+  forkedFrom?: ForkRef | null;
 }) {
   const router = useRouter();
   const canUseAi = aiPermission === "admin" || aiPermission === "approved";
@@ -169,6 +173,7 @@ export function CreateArchiveForm({
           content: format === "ai" ? aiDraft : content,
         },
         relatedArticleId: relatedArticleId || null,
+        forkedFromId: forkedFrom?.id ?? null,
       });
       if (res && !res.ok) setError(res.error);
     });
@@ -227,6 +232,28 @@ export function CreateArchiveForm({
 
   return (
     <form onSubmit={onSubmit} style={{ marginTop: 28 }}>
+      {forkedFrom && (
+        <div
+          style={{
+            marginBottom: 20,
+            padding: "12px 14px",
+            borderRadius: 12,
+            background: "var(--bg-2, #f1f3f5)",
+            fontSize: 14,
+          }}
+        >
+          <strong>{forkedFrom.authorName}</strong>님의 공식{" "}
+          <a
+            href={`/formula/${forkedFrom.id}`}
+            target="_blank"
+            rel="noreferrer"
+            style={{ color: "var(--blue)", fontWeight: 600 }}
+          >
+            “{forkedFrom.title}”
+          </a>
+          을(를) 참고해요. 내용은 직접 내 사례로 채워주세요 — 출처는 자동으로 남아요.
+        </div>
+      )}
       {/* STEP 1 — 기본 정보 */}
       <div className="write-step">
         <span className="step-num">1</span>
