@@ -25,8 +25,9 @@ import {
   messages,
   memberBookmarks,
   articlePermissionRequests,
+  sessions,
 } from "@/db/schema";
-import { auth } from "@/auth";
+import { auth, signOut } from "@/auth";
 import { isAdmin } from "@/lib/admin";
 import { canAddArticle } from "@/lib/article-permission";
 import { findOrCreateConversation } from "@/lib/queries";
@@ -244,6 +245,26 @@ export async function addComment(
   const path = p.postType === "cardnews" ? "/article/" : "/formula/";
   revalidatePath(`${path}${parsed.data.postId}`);
   return ok();
+}
+
+/**
+ * 계정 소프트 탈퇴 — 작성 콘텐츠(공식·댓글·모임)와 표시 이름은 보존하고,
+ * deactivatedAt 만 찍어 로그인 차단(auth signIn 콜백) + 세션 전체 삭제(즉시 로그아웃)
+ * + 멤버 디렉토리 제외. 유저 행을 삭제하지 않아 cascade 로 콘텐츠가 사라지지 않는다.
+ */
+export async function deactivateAccount(): Promise<ActionResult> {
+  const user = await sessionUser();
+  if (!user) return fail("로그인이 필요해요.");
+
+  await db
+    .update(users)
+    .set({ deactivatedAt: new Date() })
+    .where(eq(users.id, user.id));
+  await db.delete(sessions).where(eq(sessions.userId, user.id));
+
+  // redirect(throw) — 마지막. 현재 세션 쿠키도 정리.
+  await signOut({ redirectTo: "/" });
+  return ok(); // 도달하지 않음(redirect)
 }
 
 /** 댓글 삭제 — 작성자 본인만. 대댓글(자식)은 parentId FK cascade 로 함께 삭제된다. */

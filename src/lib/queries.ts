@@ -31,6 +31,7 @@ import {
   ilike,
   inArray,
   isNotNull,
+  isNull,
   or,
   sql,
 } from "drizzle-orm";
@@ -926,7 +927,7 @@ export async function getMemberDirectory(
   opts: { q?: string; jobRole?: string | null; viewerId?: string | null } = {},
 ): Promise<MemberCard[]> {
   const { q, jobRole, viewerId } = opts;
-  const where = [eq(users.isAgent, false)];
+  const where = [eq(users.isAgent, false), isNull(users.deactivatedAt)];
   if (q && q.trim()) {
     const like = `%${q.trim()}%`;
     where.push(

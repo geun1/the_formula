@@ -71,6 +71,13 @@
       "when": 1782465689212,
       "tag": "0009_sloppy_pestilence",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1782612185918,
+      "tag": "0010_add_user_deactivatedAt",
+      "breakpoints": true
     }
   ]
 }

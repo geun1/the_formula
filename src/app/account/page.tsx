@@ -6,6 +6,7 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { ProfileForm } from "./profile-form";
 import { SocialButtons } from "./social-buttons";
+import { DeactivateSection } from "./deactivate-section";
 
 export const metadata: Metadata = {
   title: "내 계정 — The Formula",
@@ -102,6 +103,7 @@ export default async function AccountPage() {
           {me?.onboarded ? "온보딩 다시 하기" : "온보딩 완료하기"}
         </Link>
       </p>
+      <DeactivateSection />
       </div>
     </div>
   );
