@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { initialOf } from "@/lib/ref-style";
+import { logoutAction } from "@/app/logout-action";
 
 export type NavUser = { id: string; name: string | null; image: string | null } | null;
 
@@ -40,11 +41,36 @@ function SearchIcon() {
   );
 }
 
+const navMenuItem: React.CSSProperties = {
+  display: "block",
+  padding: "9px 12px",
+  borderRadius: 8,
+  fontSize: 14,
+  fontWeight: 600,
+  color: "var(--t1, #191f28)",
+  textAlign: "left",
+};
+
 export function NavBar({ user }: { user: NavUser }) {
   const pathname = usePathname();
   const router = useRouter();
   const [scrolled, setScrolled] = useState(false);
   const [q, setQ] = useState("");
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // 아바타 메뉴 — 바깥 클릭/라우트 변경 시 닫기.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [menuOpen]);
+  useEffect(() => setMenuOpen(false), [pathname]);
 
   // 투명(흰 글씨) topbar 는 **홈 다크 히어로 위 + 최상단**에서만. 그 외(비홈 페이지,
   // 또는 스크롤 후)에는 항상 프로스티드 화이트(.scrolled). 레퍼런스 동작과 동일:
@@ -127,9 +153,58 @@ export function NavBar({ user }: { user: NavUser }) {
                     <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
                   </svg>
                 </Link>
-                <Link href="/profile/me" className="me" aria-label="내 프로필">
-                  {initialOf(user.name)}
-                </Link>
+                <div ref={menuRef} style={{ position: "relative" }}>
+                  <button
+                    type="button"
+                    className="me"
+                    aria-label="내 메뉴"
+                    aria-haspopup="menu"
+                    aria-expanded={menuOpen}
+                    onClick={() => setMenuOpen((v) => !v)}
+                  >
+                    {initialOf(user.name)}
+                  </button>
+                  {menuOpen && (
+                    <div
+                      role="menu"
+                      style={{
+                        position: "absolute",
+                        right: 0,
+                        top: "calc(100% + 8px)",
+                        minWidth: 160,
+                        background: "var(--white, #fff)",
+                        border: "1px solid var(--border, #e5e7eb)",
+                        borderRadius: 12,
+                        boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
+                        padding: 6,
+                        zIndex: 50,
+                      }}
+                    >
+                      <Link href="/profile/me" role="menuitem" style={navMenuItem}>
+                        내 프로필
+                      </Link>
+                      <Link href="/account" role="menuitem" style={navMenuItem}>
+                        계정 설정
+                      </Link>
+                      <form action={logoutAction}>
+                        <button
+                          type="submit"
+                          role="menuitem"
+                          style={{
+                            ...navMenuItem,
+                            width: "100%",
+                            background: "transparent",
+                            border: "none",
+                            cursor: "pointer",
+                            color: "#F03E3E",
+                          }}
+                        >
+                          로그아웃
+                        </button>
+                      </form>
+                    </div>
+                  )}
+                </div>
               </>
             ) : (
               <>
