@@ -575,6 +575,18 @@ export async function completeOnboarding(input: {
   return ok();
 }
 
+/** 온보딩 건너뛰기 — onboarded 만 true(직무/관심사는 나중에 계정에서). */
+export async function skipOnboarding(): Promise<ActionResult> {
+  const user = await sessionUser();
+  if (!user) return fail("로그인이 필요해요.");
+  await db
+    .update(users)
+    .set({ onboarded: true })
+    .where(eq(users.id, user.id));
+  revalidatePath("/");
+  return ok();
+}
+
 /** 공식/아티클 삭제 — 작성자 본인만. 댓글·북마크 등은 postId FK cascade 로 함께 삭제. */
 export async function deletePost(postId: string): Promise<ActionResult> {
   const user = await sessionUser();

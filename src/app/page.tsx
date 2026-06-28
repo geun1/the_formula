@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { auth } from "@/auth";
 import { getArticles, getPopularTop5, getProfile } from "@/lib/queries";
@@ -203,6 +204,11 @@ export default async function HomePage({
 
   // 비로그인은 하단 가입 CTA. (개인화 인사는 별도 — 현재 히어로는 고정 카피)
   const profile = userId ? await getProfile("me", userId) : null;
+  // 신규 가입(온보딩 미완료) 유저는 프로필 편집부터 시작하도록 안내.
+  // (온보딩 완료/건너뛰기 시 onboarded=true → 더는 리다이렉트 안 함)
+  if (userId && profile && !profile.user.onboarded) {
+    redirect("/account");
+  }
   const displayName = profile?.user.name ?? null;
 
   // getArticles 는 latest/popular 만 지원 → 'saved' 는 saveCount 로 재정렬.
