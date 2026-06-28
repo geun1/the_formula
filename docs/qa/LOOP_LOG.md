@@ -108,3 +108,18 @@
   - 보류: topTags→아카이브 필터(마진), 카드 클릭영역(설계 트레이드오프).
 - 게이트: typecheck 0 에러, lint 회귀 없음(신규/변경 파일 클린).
 - 신규 파일: list-search.tsx, owner-panel.tsx. 변경: actions.ts(+4 액션), comment-section/formula-actions/member-grid/account/queries/아카이브·멤버 page.
+
+## R8 — 2026-06-28 — 미실행 케이스 전수 실행
+TEST_CASES의 남은 ⬜ 케이스 전부 실행(브라우저).
+- 홈: H-1~3 PASS, H-4 N/A(라이트 전용 토글 미렌더).
+- 권한: P-4(거절→재요청) PASS(rejected 시드→재요청→pending).
+- 아카이브: R-4(가이드 형식 발행) PASS.
+- 활동: V-1/V-2 PASS, Y-1(지원 제출)·Y-2(빈값 검증) PASS.
+- 멤버/프로필: M-1·M-2(외부링크)·M-4(팔로우 토글)·M-5 PASS.
+- 채팅: C-1(받은함)·C-2(송수신) PASS.
+- 온보딩: O-1·O-2 PASS.
+- 교차: X-1(비로그인 차단)·X-2·X-3(404)·X-4(업로드 검증 401/400) PASS.
+- A-4(페이지네이션): 12개 시드→'더 보기' 동작 PASS. A-8: A-6으로 커버.
+- 보류 유지: A-5/A-7(AI 키·외부 fetch 필요).
+- 전 구간 콘솔 0 에러(404 페이지의 404 리소스 로그 제외).
+- 운영 원복: 세션 검증 중 ADMIN_USER_IDS는 이미 빈 값으로 원복됨(QA admin 권한 제거 확인).

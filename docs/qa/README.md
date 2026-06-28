@@ -7,7 +7,10 @@
 
 | 문서 | 역할 |
 |------|------|
-| [QA_REPORT.md](QA_REPORT.md) | **보고용 종합 리포트** (요약·결과·권고) |
+| [QA_SUMMARY.md](QA_SUMMARY.md) | **★ 종합 정리** (QA 방법·시나리오·전체 수정/커밋 한눈에) |
+| [QA_REPORT.md](QA_REPORT.md) | 초기 자동 루프 보고서 (요약·결과·권고) |
+| [CHROME_SCENARIOS.md](CHROME_SCENARIOS.md) | **클로드인크롬 시나리오 + 실행 결과** (기능·페이지별 단계 + 최신 PASS/FAIL) |
+| [USER_SCENARIOS.md](USER_SCENARIOS.md) | **사용자 여정(E2E)** 시나리오 (페르소나·목표 기반 통합 흐름) |
 | [TEST_PLAN.md](TEST_PLAN.md) | 범위·환경·역할·리스크·합격 기준 (전략) |
 | [TEST_CASES.md](TEST_CASES.md) | 페이지/기능별 테스트 케이스 (살아있는 시트) |
 | [BUGS.md](BUGS.md) | 발견 결함 트래커 |
