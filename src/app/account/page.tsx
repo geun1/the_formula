@@ -100,6 +100,7 @@ export default async function AccountPage({
           homepage: me?.homepage ?? null,
           blog: me?.blog ?? null,
         }}
+        nextOnboarding={!me?.onboarded}
       />
 
       <div className="sec">
