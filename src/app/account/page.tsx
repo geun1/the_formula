@@ -103,21 +103,27 @@ export default async function AccountPage({
         nextOnboarding={!me?.onboarded}
       />
 
-      <div className="sec">
-        <h2>알림 · 설정</h2>
-      </div>
-      <p className="page-sub" style={{ marginTop: 0 }}>
-        알림 설정은 곧 제공될 예정이에요.
-      </p>
-      <p className="page-sub" style={{ marginTop: 10 }}>
-        {me?.onboarded
-          ? "관심사·직무를 다시 고르고 싶나요? "
-          : "아직 온보딩을 마치지 않았어요. "}
-        <Link href="/onboarding" style={{ color: "var(--blue)", fontWeight: 600 }}>
-          {me?.onboarded ? "온보딩 다시 하기" : "온보딩 완료하기"}
-        </Link>
-      </p>
-      <DeactivateSection />
+      {/* 알림·설정/온보딩 재진입/탈퇴 — 신규 가입(온보딩 미완료) 중에는 숨김. */}
+      {me?.onboarded && (
+        <>
+          <div className="sec">
+            <h2>알림 · 설정</h2>
+          </div>
+          <p className="page-sub" style={{ marginTop: 0 }}>
+            알림 설정은 곧 제공될 예정이에요.
+          </p>
+          <p className="page-sub" style={{ marginTop: 10 }}>
+            관심사·직무를 다시 고르고 싶나요?{" "}
+            <Link
+              href="/onboarding"
+              style={{ color: "var(--blue)", fontWeight: 600 }}
+            >
+              온보딩 다시 하기
+            </Link>
+          </p>
+          <DeactivateSection />
+        </>
+      )}
       </div>
     </div>
   );
