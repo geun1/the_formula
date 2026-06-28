@@ -301,15 +301,7 @@ export default async function HomePage({
           </aside>
 
           <div className="feed-main">
-            <div
-              className="feed-ctrl"
-              style={userId ? { justifyContent: "space-between" } : undefined}
-            >
-              {userId && (
-                <Link href="/article/new" className="write-btn">
-                  + 아티클 추가
-                </Link>
-              )}
+            <div className="feed-ctrl">
               <HomeSortSelect
                 options={SORT_OPTIONS.map((o) => ({
                   value: o.value,
@@ -324,6 +316,13 @@ export default async function HomePage({
                 <FeedCard key={p.id} post={p} />
               ))}
             </div>
+            {userId && (
+              <div style={{ marginTop: 18, textAlign: "center" }}>
+                <Link href="/article/new" className="write-btn">
+                  + 아티클 추가 요청
+                </Link>
+              </div>
+            )}
           </div>
         </div>
 
