@@ -236,17 +236,8 @@ export default async function HomePage({
                형제로 wrap 안에 있어야 함. 별 배경 + 오버레이 + 검색.
             ===================================================================== */}
         <div className="journal-hero">
-          <video
-            className="hero-video"
-            autoPlay
-            muted
-            loop
-            playsInline
-            poster="/hero-stars.jpg"
-            preload="auto"
-          >
-            <source src="/hero-galaxy.mp4" type="video/mp4" />
-          </video>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img className="hero-video" src="/hero-stars.jpg" alt="" fetchPriority="high" decoding="async" />
           <div className="hero-overlay" />
           <div className="jh-text">
             <div className="jh-date">{heroDate()}</div>
@@ -267,8 +258,6 @@ export default async function HomePage({
             </h1>
             <p className="jh-sub">AI와 함께 더 효율적인 일하는 방식을 찾아보세요.</p>
           </div>
-          {/* 가운데 회전 행성 엠블럼(투명 GIF) — 헤드라인과 검색창 사이 중앙 아이콘 */}
-          <div className="hero-emblem" aria-hidden />
           <HeroSearch action="/search" placeholder="공식, 아티클, 멤버 검색…" />
           <div className="hero-trends">
             <span className="trend-label">많이 찾는</span>
