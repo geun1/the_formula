@@ -131,7 +131,14 @@ function FeedCard({ post }: { post: FeedPost }) {
   const tool = firstTool(post);
   const href = `/article/${post.id}`;
   return (
-    <article className="feed-card">
+    <article className="feed-card" style={{ position: "relative" }}>
+      {/* 카드 전체 클릭 오버레이 — 어디를 눌러도 상세로. 위 버튼만 z-index 로 예외 */}
+      <Link
+        href={href}
+        aria-hidden
+        tabIndex={-1}
+        style={{ position: "absolute", inset: 0, zIndex: 1 }}
+      />
       <Link href={href} className={`fcover ${cover}`}>
         {post.cardnews?.coverImageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element

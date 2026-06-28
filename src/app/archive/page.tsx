@@ -107,15 +107,19 @@ function ArchiveCard({ post }: { post: FeedPost }) {
   const tool = post.formula?.tools?.[0] ?? null;
   const summary = post.oneLiner ?? post.formula?.result ?? "";
   return (
-    <article className="fcard">
+    <article className="fcard" style={{ position: "relative" }}>
+      {/* 카드 전체 클릭 오버레이 — 공유 버튼만 z-index 로 예외 */}
+      <Link
+        href={`/formula/${post.id}`}
+        aria-label={post.title}
+        style={{ position: "absolute", inset: 0, zIndex: 1 }}
+      />
       <div className="fc-tags">
         <span className="chip">{cat}</span>
         {tool && <span className="chip tool">{tool}</span>}
       </div>
-      <Link href={`/formula/${post.id}`} style={{ display: "contents" }}>
-        <h3>{post.title}</h3>
-        <p className="fc-sum">{summary}</p>
-      </Link>
+      <h3>{post.title}</h3>
+      <p className="fc-sum">{summary}</p>
       <div className="fc-foot">
         <span className="author">
           <span className={`avatar-sm ${avaFor(post.authorId)}`}>
