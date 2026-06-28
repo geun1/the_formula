@@ -26,6 +26,7 @@ import {
   memberBookmarks,
   articlePermissionRequests,
   sessions,
+  accounts,
 } from "@/db/schema";
 import { auth, signOut } from "@/auth";
 import { isAdmin } from "@/lib/admin";
@@ -248,19 +249,24 @@ export async function addComment(
 }
 
 /**
- * 계정 소프트 탈퇴 — 작성 콘텐츠(공식·댓글·모임)와 표시 이름은 보존하고,
- * deactivatedAt 만 찍어 로그인 차단(auth signIn 콜백) + 세션 전체 삭제(즉시 로그아웃)
- * + 멤버 디렉토리 제외. 유저 행을 삭제하지 않아 cascade 로 콘텐츠가 사라지지 않는다.
+ * 계정 소프트 탈퇴 — 작성 콘텐츠(공식·댓글·모임)와 표시 이름은 보존(유저 행 유지),
+ * deactivatedAt 기록 + 세션 전체 삭제(즉시 로그아웃) + 멤버 디렉토리 제외.
+ * 또한 소셜 계정 연결(account)을 끊어, 같은 소셜로 다시 로그인하면 어댑터가
+ * '완전히 새 계정'을 만들도록 한다(이전 콘텐츠는 탈퇴 이름으로 남고 연결 안 됨).
  */
 export async function deactivateAccount(): Promise<ActionResult> {
   const user = await sessionUser();
   if (!user) return fail("로그인이 필요해요.");
 
+  // 이메일도 비운다: Auth.js 는 계정 연결이 없어도 같은 이메일이면 OAuthAccountNotLinked
+  // 로 막으므로, 이메일을 풀어줘야 같은 소셜로 '새 계정' 가입이 된다. 이름은 유지.
   await db
     .update(users)
-    .set({ deactivatedAt: new Date() })
+    .set({ deactivatedAt: new Date(), email: null })
     .where(eq(users.id, user.id));
   await db.delete(sessions).where(eq(sessions.userId, user.id));
+  // 소셜 계정 연결 해제 → 재로그인 시 새 유저 생성(=새 계정으로 재가입).
+  await db.delete(accounts).where(eq(accounts.userId, user.id));
 
   // redirect(throw) — 마지막. 현재 세션 쿠키도 정리.
   await signOut({ redirectTo: "/" });

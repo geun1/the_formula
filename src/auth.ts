@@ -2,7 +2,7 @@
 // 보안 체크는 middleware/proxy 의존 대신 서버 컴포넌트·액션·라우트핸들러에서
 // auth() 세션을 직접 확인한다(Next 16 권장: "데이터 소스 가까이서 검사").
 import NextAuth from "next-auth";
-import { eq } from "drizzle-orm";
+import { and, eq, isNotNull } from "drizzle-orm";
 import { DrizzleAdapter } from "@auth/drizzle-adapter";
 import Google from "next-auth/providers/google";
 import Kakao from "next-auth/providers/kakao";
@@ -29,15 +29,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   providers,
   session: { strategy: "database" },
   callbacks: {
-    // 소프트 탈퇴 회원 재로그인 차단(deactivatedAt 설정 시 거부).
+    // 로그인 성공 = 활성 계정. 연결이 남은 구버전 탈퇴 계정이면 재활성화(deactivatedAt 해제).
+    // 신규 탈퇴는 소셜 연결을 끊어 새 유저로 가입되므로 이 경로에 오지 않는다.
     async signIn({ user }) {
-      if (!user?.id) return true;
-      const [row] = await db
-        .select({ deactivatedAt: users.deactivatedAt })
-        .from(users)
-        .where(eq(users.id, user.id))
-        .limit(1);
-      return !row?.deactivatedAt;
+      if (user?.id) {
+        await db
+          .update(users)
+          .set({ deactivatedAt: null })
+          .where(and(eq(users.id, user.id), isNotNull(users.deactivatedAt)));
+      }
+      return true;
     },
     session({ session, user }) {
       if (session.user && user) {
