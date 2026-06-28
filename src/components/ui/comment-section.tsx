@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { Avatar, GradeBadge } from "@/components/ui";
+import { ConfirmDialog } from "./confirm-dialog";
 import type { CommentNode } from "@/lib/contract";
 import { useRouter } from "next/navigation";
 import { addComment, deleteComment } from "@/app/actions";
@@ -126,9 +127,6 @@ function CommentItem({
   const isOwn = viewerId != null && node.userId === viewerId;
 
   function remove() {
-    if (!window.confirm("이 댓글을 삭제할까요? 달린 답글도 함께 삭제돼요.")) {
-      return;
-    }
     startDelete(async () => {
       const res = await deleteComment(node.id);
       if (res.ok) router.refresh();
@@ -167,14 +165,14 @@ function CommentItem({
               </button>
             )}
             {isOwn && (
-              <button
-                type="button"
+              <ConfirmDialog
+                onConfirm={remove}
+                label={deleting ? "삭제 중…" : "삭제"}
+                title="댓글을 삭제할까요?"
+                message="달린 답글도 함께 삭제되며 되돌릴 수 없어요."
                 className="ci-reply-btn"
-                onClick={remove}
                 disabled={deleting}
-              >
-                {deleting ? "삭제 중…" : "삭제"}
-              </button>
+              />
             )}
           </span>
         )}

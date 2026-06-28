@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   SaveButton,
   ShareButton,
+  ConfirmDialog,
   type ToggleResult,
 } from "@/components/ui";
 import { toggleBookmark, duplicateFormula, deletePost } from "@/app/actions";
@@ -61,7 +62,6 @@ export function FormulaActions({
   }
 
   function onDelete() {
-    if (!window.confirm("이 공식을 삭제할까요? 되돌릴 수 없어요.")) return;
     setError(null);
     startTransition(async () => {
       const res = await deletePost(postId);
@@ -101,14 +101,14 @@ export function FormulaActions({
         )}
         <ShareButton url={shareUrl} variant="detail" stopPropagation={false} />
         {isOwner && (
-          <button
-            type="button"
+          <ConfirmDialog
+            onConfirm={onDelete}
+            label="삭제"
+            title="공식을 삭제할까요?"
+            message="이 공식을 삭제하면 되돌릴 수 없어요."
             className="btn btn-ghost"
-            onClick={onDelete}
             disabled={pending}
-          >
-            삭제
-          </button>
+          />
         )}
       </div>
       {error && (

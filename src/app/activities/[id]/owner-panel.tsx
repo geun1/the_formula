@@ -3,7 +3,7 @@
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Avatar } from "@/components/ui";
+import { Avatar, ConfirmDialog } from "@/components/ui";
 import {
   reviewApplication,
   updateActivityStatus,
@@ -66,9 +66,6 @@ export function OwnerPanel({
   }
 
   function remove() {
-    if (!window.confirm("이 모임을 삭제할까요? 지원 내역도 함께 삭제돼요.")) {
-      return;
-    }
     startTransition(async () => {
       const res = await deleteActivity(activityId);
       if (res.ok) router.push("/activities");
@@ -100,15 +97,16 @@ export function OwnerPanel({
             {s.label}
           </button>
         ))}
-        <button
-          type="button"
-          className="btn btn-ghost"
-          disabled={pending}
-          onClick={remove}
-          style={{ marginLeft: "auto" }}
-        >
-          삭제
-        </button>
+        <span style={{ marginLeft: "auto" }}>
+          <ConfirmDialog
+            onConfirm={remove}
+            label="삭제"
+            title="모임을 삭제할까요?"
+            message="지원 내역도 함께 삭제되며 되돌릴 수 없어요."
+            className="btn btn-ghost"
+            disabled={pending}
+          />
+        </span>
       </div>
 
       {/* 지원자 목록 */}

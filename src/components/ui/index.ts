@@ -24,6 +24,7 @@ export {
 } from "./sort-tabs";
 export { FilterBar, type FilterBarProps, type FilterState } from "./filter-bar";
 export { ListSearch, type ListSearchProps } from "./list-search";
+export { ConfirmDialog, type ConfirmDialogProps } from "./confirm-dialog";
 export { Modal, type ModalProps } from "./modal";
 export { SaveButton, type SaveButtonProps } from "./save-button";
 export { LikeButton, type LikeButtonProps } from "./like-button";
