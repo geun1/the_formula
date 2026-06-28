@@ -13,9 +13,22 @@ export const metadata: Metadata = {
   description: "프로필 편집 · 알림 · 설정",
 };
 
-export default async function AccountPage() {
+export default async function AccountPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ callbackUrl?: string }>;
+}) {
+  const sp = await searchParams;
   const session = await auth();
   const userId = session?.user?.id;
+
+  // 로그인 성공 후 돌아갈 곳. 기본 홈(/). 로그인 화면 자체(/account)나 외부 URL은
+  // 홈으로 보정 — 가입 완료 회원이 로그인 후 프로필 편집으로 튕기던 문제 해결.
+  const cb = sp.callbackUrl;
+  const loginCallback =
+    cb && cb.startsWith("/") && !cb.startsWith("//") && !cb.startsWith("/account")
+      ? cb
+      : "/";
 
   // 비로그인 — 로그인 화면(view-07-login). .auth-card 마크업 그대로.
   if (!userId) {
@@ -29,7 +42,7 @@ export default async function AccountPage() {
             </div>
             <h1 className="auth-title">다시 오셨네요</h1>
             <p className="auth-sub">멈춘 자리에서, 공식을 이어 쌓아볼까요?</p>
-            <SocialButtons callbackUrl="/account" mode="login" />
+            <SocialButtons callbackUrl={loginCallback} mode="login" />
             <p className="auth-switch">
               아직 포뮬러가 아니신가요? <Link href="/apply">가입하기</Link>
             </p>
