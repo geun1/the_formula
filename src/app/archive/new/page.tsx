@@ -3,7 +3,7 @@ import Link from "next/link";
 import { auth } from "@/auth";
 import { getArticles, getArchiveDetail } from "@/lib/queries";
 import { getArticlePermission } from "@/lib/article-permission";
-import type { ArticleOption } from "./create-archive-form";
+import type { ArticleOption, ForkRef } from "./create-archive-form";
 import { CreateArchiveForm } from "./create-archive-form";
 
 export const metadata: Metadata = {
@@ -26,6 +26,7 @@ export default async function NewArchivePage({
   const viewerId = session?.user?.id ?? null;
 
   const prefillId = first(sp.articleId) ?? null;
+  const refId = first(sp.ref) ?? null;
 
   // 참고 아티클 선택 풀(최신 아티클). 로그인 사용자에게만 폼을 보이므로
   // 비로그인일 땐 굳이 조회하지 않는다.
@@ -55,6 +56,19 @@ export default async function NewArchivePage({
           articles = [prefill, ...articles.filter((a) => a.id !== prefill!.id)];
         }
       }
+    }
+  }
+
+  // '따라하기' — 원본 공식을 출처로 연결(내용 복제 없음). ref=공식 post.id.
+  let forkedFrom: ForkRef | null = null;
+  if (viewerId && refId) {
+    const detail = await getArchiveDetail(refId);
+    if (detail && detail.post.postType === "formula") {
+      forkedFrom = {
+        id: detail.post.id,
+        title: detail.post.title,
+        authorName: detail.post.authorName,
+      };
     }
   }
 
@@ -94,6 +108,7 @@ export default async function NewArchivePage({
           articles={articles}
           prefill={prefill}
           aiPermission={aiPermission}
+          forkedFrom={forkedFrom}
         />
       ) : (
         <div className="join-cta" style={{ marginTop: 32 }}>

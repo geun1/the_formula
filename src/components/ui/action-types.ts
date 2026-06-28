@@ -25,7 +25,3 @@ export type AddCommentAction = (
   body: string,
 ) => Promise<{ id: string } | void>;
 
-/** duplicateFormula(postId) → 복제된 새 공식 id */
-export type DuplicateFormulaAction = (
-  postId: string,
-) => Promise<{ id: string }>;

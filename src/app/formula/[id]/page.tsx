@@ -177,7 +177,8 @@ export default async function FormulaDetailPage({ params }: PageProps) {
   const detail = await getArchiveDetail(id, viewerId);
   if (!detail) notFound();
 
-  const { post, comments, isSaved, isLiked, author, sourceArticle } = detail;
+  const { post, comments, isSaved, isLiked, author, sourceArticle, sourceFormula } =
+    detail;
   const isCardnews = post.postType === "cardnews";
 
   // 우측 사이드바: 작성자의 다른 공식 + 팔로우 상태
@@ -228,6 +229,7 @@ export default async function FormulaDetailPage({ params }: PageProps) {
             initialLikeCount={post.likeCount}
             shareUrl={shareUrl}
             loggedIn={!!viewerId}
+            isOwner={isMe}
           />
 
           {/* 해시태그 */}
@@ -275,6 +277,19 @@ export default async function FormulaDetailPage({ params }: PageProps) {
 
           {/* 참고한 아티클 백링크 */}
           {sourceArticle && <SourceArticleCard article={sourceArticle} />}
+
+          {/* '따라하기' 출처 — 참고한 원본 공식 */}
+          {sourceFormula && (
+            <p className="page-sub" style={{ marginTop: 4 }}>
+              <Link
+                href={`/formula/${sourceFormula.id}`}
+                style={{ color: "var(--blue)", fontWeight: 600 }}
+              >
+                {sourceFormula.authorName}님의 “{sourceFormula.title}”
+              </Link>
+              을(를) 참고했어요.
+            </p>
+          )}
 
           {/* 본문 */}
           {isCardnews && post.cardnews ? (

@@ -25,8 +25,10 @@ import {
   messages,
   memberBookmarks,
   articlePermissionRequests,
+  sessions,
+  accounts,
 } from "@/db/schema";
-import { auth } from "@/auth";
+import { auth, signOut } from "@/auth";
 import { isAdmin } from "@/lib/admin";
 import { canAddArticle } from "@/lib/article-permission";
 import { findOrCreateConversation } from "@/lib/queries";
@@ -35,9 +37,11 @@ import type { FormulaBody } from "@/lib/contract";
 import {
   AGENT_CURATOR_ID,
   ACTIVITY_TYPES,
+  ACTIVITY_STATUSES,
   CATEGORIES,
   DIFFICULTIES,
   type ActivityType,
+  type ActivityStatus,
 } from "@/lib/contract";
 import { generateCardNews } from "@/lib/cardnews";
 
@@ -244,6 +248,61 @@ export async function addComment(
   return ok();
 }
 
+/**
+ * 계정 소프트 탈퇴 — 작성 콘텐츠(공식·댓글·모임)와 표시 이름은 보존(유저 행 유지),
+ * deactivatedAt 기록 + 세션 전체 삭제(즉시 로그아웃) + 멤버 디렉토리 제외.
+ * 또한 소셜 계정 연결(account)을 끊어, 같은 소셜로 다시 로그인하면 어댑터가
+ * '완전히 새 계정'을 만들도록 한다(이전 콘텐츠는 탈퇴 이름으로 남고 연결 안 됨).
+ */
+export async function deactivateAccount(): Promise<ActionResult> {
+  const user = await sessionUser();
+  if (!user) return fail("로그인이 필요해요.");
+
+  // 이메일도 비운다: Auth.js 는 계정 연결이 없어도 같은 이메일이면 OAuthAccountNotLinked
+  // 로 막으므로, 이메일을 풀어줘야 같은 소셜로 '새 계정' 가입이 된다. 이름은 유지.
+  await db
+    .update(users)
+    .set({ deactivatedAt: new Date(), email: null })
+    .where(eq(users.id, user.id));
+  await db.delete(sessions).where(eq(sessions.userId, user.id));
+  // 소셜 계정 연결 해제 → 재로그인 시 새 유저 생성(=새 계정으로 재가입).
+  await db.delete(accounts).where(eq(accounts.userId, user.id));
+
+  // redirect(throw) — 마지막. 현재 세션 쿠키도 정리.
+  await signOut({ redirectTo: "/" });
+  return ok(); // 도달하지 않음(redirect)
+}
+
+/** 댓글 삭제 — 작성자 본인만. 대댓글(자식)은 parentId FK cascade 로 함께 삭제된다. */
+export async function deleteComment(
+  commentId: string,
+): Promise<ActionResult> {
+  const user = await sessionUser();
+  if (!user) return fail("로그인이 필요해요.");
+  if (!commentId) return fail("잘못된 요청이에요.");
+
+  const [c] = await db
+    .select({ userId: interactions.userId, postId: interactions.postId })
+    .from(interactions)
+    .where(
+      and(eq(interactions.id, commentId), eq(interactions.type, "comment")),
+    )
+    .limit(1);
+  if (!c) return fail("댓글을 찾을 수 없어요.");
+  if (c.userId !== user.id) return fail("본인 댓글만 삭제할 수 있어요.");
+
+  await db.delete(interactions).where(eq(interactions.id, commentId));
+
+  const [p] = await db
+    .select({ postType: posts.postType })
+    .from(posts)
+    .where(eq(posts.id, c.postId))
+    .limit(1);
+  const path = p?.postType === "cardnews" ? "/article/" : "/formula/";
+  revalidatePath(`${path}${c.postId}`);
+  return ok();
+}
+
 // =============================================================================
 // 팔로우 토글
 // =============================================================================
@@ -347,6 +406,84 @@ export async function applyToActivity(
 }
 
 // =============================================================================
+// 모임 소유자 관리 — 지원 승인/반려 · 상태 전환 · 삭제 (모두 소유자 전용)
+// =============================================================================
+
+/** 모임 소유자 검증. 소유자면 activity row, 아니면 null. */
+async function ownActivityOr(activityId: string, userId: string) {
+  const [act] = await db
+    .select({ id: activities.id, ownerId: activities.ownerId })
+    .from(activities)
+    .where(eq(activities.id, activityId))
+    .limit(1);
+  return act && act.ownerId === userId ? act : null;
+}
+
+/** 지원자 수락/반려 — 해당 모임 소유자만. */
+export async function reviewApplication(
+  applicationId: string,
+  decision: "accept" | "reject",
+): Promise<ActionResult> {
+  const user = await sessionUser();
+  if (!user) return fail("로그인이 필요해요.");
+  if (!applicationId) return fail("잘못된 요청이에요.");
+
+  const [app] = await db
+    .select({ id: applications.id, activityId: applications.activityId })
+    .from(applications)
+    .where(eq(applications.id, applicationId))
+    .limit(1);
+  if (!app) return fail("지원 내역을 찾을 수 없어요.");
+  if (!(await ownActivityOr(app.activityId, user.id))) {
+    return fail("이 모임을 관리할 권한이 없어요.");
+  }
+
+  await db
+    .update(applications)
+    .set({ status: decision === "accept" ? "accepted" : "rejected" })
+    .where(eq(applications.id, applicationId));
+
+  revalidatePath(`/activities/${app.activityId}`);
+  return ok();
+}
+
+/** 모임 상태 전환(모집중 → 진행중 → 완료) — 소유자만. */
+export async function updateActivityStatus(
+  activityId: string,
+  status: ActivityStatus,
+): Promise<ActionResult> {
+  const user = await sessionUser();
+  if (!user) return fail("로그인이 필요해요.");
+  if (!ACTIVITY_STATUSES.includes(status)) return fail("잘못된 상태예요.");
+  if (!(await ownActivityOr(activityId, user.id))) {
+    return fail("이 모임을 관리할 권한이 없어요.");
+  }
+
+  await db
+    .update(activities)
+    .set({ status })
+    .where(eq(activities.id, activityId));
+  revalidatePath(`/activities/${activityId}`);
+  revalidatePath("/activities");
+  return ok();
+}
+
+/** 모임 삭제 — 소유자만. 지원 내역은 FK cascade 로 함께 삭제된다. */
+export async function deleteActivity(
+  activityId: string,
+): Promise<ActionResult> {
+  const user = await sessionUser();
+  if (!user) return fail("로그인이 필요해요.");
+  if (!(await ownActivityOr(activityId, user.id))) {
+    return fail("이 모임을 삭제할 권한이 없어요.");
+  }
+
+  await db.delete(activities).where(eq(activities.id, activityId));
+  revalidatePath("/activities");
+  return ok();
+}
+
+// =============================================================================
 // 모임 생성 (작성 후 상세로 redirect)
 // =============================================================================
 const createActivitySchema = z.object({
@@ -438,53 +575,37 @@ export async function completeOnboarding(input: {
   return ok();
 }
 
-// =============================================================================
-// 공식 복제(따라하기) — 원본을 내 초안 formula 로 복제
-// =============================================================================
-export async function duplicateFormula(
-  postId: string,
-): Promise<ActionResult<{ id: string }>> {
+/** 온보딩 건너뛰기 — onboarded 만 true(직무/관심사는 나중에 계정에서). */
+export async function skipOnboarding(): Promise<ActionResult> {
+  const user = await sessionUser();
+  if (!user) return fail("로그인이 필요해요.");
+  await db
+    .update(users)
+    .set({ onboarded: true })
+    .where(eq(users.id, user.id));
+  revalidatePath("/");
+  return ok();
+}
+
+/** 공식/아티클 삭제 — 작성자 본인만. 댓글·북마크 등은 postId FK cascade 로 함께 삭제. */
+export async function deletePost(postId: string): Promise<ActionResult> {
   const user = await sessionUser();
   if (!user) return fail("로그인이 필요해요.");
   if (!postId || typeof postId !== "string") return fail("잘못된 요청이에요.");
 
-  const [src] = await db
-    .select()
+  const [p] = await db
+    .select({ authorId: posts.authorId })
     .from(posts)
     .where(eq(posts.id, postId))
     .limit(1);
-  if (!src) return fail("공식을 찾을 수 없어요.");
-  if (src.postType !== "formula" || !src.formula) {
-    return fail("복제할 수 있는 공식이 아니에요.");
-  }
+  if (!p) return fail("게시물을 찾을 수 없어요.");
+  if (p.authorId !== user.id) return fail("본인 글만 삭제할 수 있어요.");
 
-  const [row] = await db
-    .insert(posts)
-    .values({
-      postType: "formula",
-      title: `[복제] ${src.title}`,
-      oneLiner: src.oneLiner,
-      category: src.category,
-      tags: (src.tags as string[]) ?? [],
-      difficulty: src.difficulty,
-      workType: src.workType,
-      verified: false, // 복제본은 미검증 초안
-      authorType: "user",
-      authorId: user.id,
-      authorName: user.name,
-      sourceName: null,
-      sourceUrl: null,
-      collectedAt: null,
-      cardnews: null,
-      formula: src.formula,
-      // 원본이 참고하던 아티클 연결을 복제본에도 승계
-      relatedArticleId: src.relatedArticleId ?? null,
-    })
-    .returning({ id: posts.id });
-
+  await db.delete(posts).where(eq(posts.id, postId));
   revalidatePath("/archive");
+  revalidatePath("/");
   revalidatePath("/profile/me");
-  return ok({ id: row.id });
+  return ok();
 }
 
 // =============================================================================
@@ -513,6 +634,8 @@ const createArchiveSchema = z.object({
   }),
   // 참고한 아티클(cardnews) post.id. 선택.
   relatedArticleId: z.string().trim().min(1).nullish(),
+  // '따라하기'로 참고한 원본 공식(formula) post.id. 내용 복제 없이 출처만 연결. 선택.
+  forkedFromId: z.string().trim().min(1).nullish(),
 });
 
 export type CreateArchiveInput = z.input<typeof createArchiveSchema>;
@@ -545,6 +668,17 @@ export async function createArchive(
       return fail("아티클(카드뉴스)만 참고로 연결할 수 있어요.");
     }
     relatedArticleId = art.id;
+  }
+
+  // forkedFromId 검증 — 존재하고 공식(formula)이어야 출처로 연결.
+  let forkedFromId: string | null = null;
+  if (parsed.data.forkedFromId) {
+    const [src] = await db
+      .select({ id: posts.id, postType: posts.postType })
+      .from(posts)
+      .where(eq(posts.id, parsed.data.forkedFromId))
+      .limit(1);
+    if (src && src.postType === "formula") forkedFromId = src.id;
   }
 
   // ── 형식별 검증 + formula 본문 구성 ──────────────────────────────
@@ -617,6 +751,7 @@ export async function createArchive(
       cardnews: null,
       formula: formulaBody,
       relatedArticleId,
+      forkedFromId,
     })
     .returning({ id: posts.id });
 

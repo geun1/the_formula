@@ -54,6 +54,8 @@ export const users = pgTable("user", {
   isAgent: boolean("isAgent").notNull().default(false),
   visitCountBase: integer("visitCountBase").notNull().default(0), // 시드 baseline
   projectCount: integer("projectCount").notNull().default(0), // 프로젝트 완주(관리값)
+  // 소프트 탈퇴 — 값이 있으면 탈퇴 회원. 작성 콘텐츠·이름은 보존하되 로그인 차단·목록 제외.
+  deactivatedAt: timestamp("deactivatedAt", { mode: "date" }),
   createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
 });
 
@@ -136,6 +138,10 @@ export const posts = pgTable(
       (): AnyPgColumn => posts.id,
       { onDelete: "set null" },
     ),
+    // '따라하기'로 참고한 원본 공식(post.id). 내용은 복제하지 않고 출처만 연결. 원본 삭제 시 set null.
+    forkedFromId: text("forkedFromId").references((): AnyPgColumn => posts.id, {
+      onDelete: "set null",
+    }),
     createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
   },
   (t) => [

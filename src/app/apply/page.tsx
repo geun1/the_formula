@@ -108,7 +108,7 @@ export default async function ApplyPage() {
               <p className="auth-sub">
                 오늘 올린 공식 하나가, 내일의 포트폴리오가 돼요.
               </p>
-              <SocialButtons callbackUrl="/onboarding" mode="signup" />
+              <SocialButtons callbackUrl="/account" mode="signup" />
               <p className="auth-terms">
                 가입하면 이용약관과 개인정보 처리방침에 동의하게 돼요.
               </p>

@@ -6,16 +6,29 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { ProfileForm } from "./profile-form";
 import { SocialButtons } from "./social-buttons";
-import { SignOutButton } from "@/components/ui/auth-buttons";
+import { DeactivateSection } from "./deactivate-section";
 
 export const metadata: Metadata = {
   title: "내 계정 — The Formula",
   description: "프로필 편집 · 알림 · 설정",
 };
 
-export default async function AccountPage() {
+export default async function AccountPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ callbackUrl?: string }>;
+}) {
+  const sp = await searchParams;
   const session = await auth();
   const userId = session?.user?.id;
+
+  // 로그인 성공 후 돌아갈 곳. 기본 홈(/). 로그인 화면 자체(/account)나 외부 URL은
+  // 홈으로 보정 — 가입 완료 회원이 로그인 후 프로필 편집으로 튕기던 문제 해결.
+  const cb = sp.callbackUrl;
+  const loginCallback =
+    cb && cb.startsWith("/") && !cb.startsWith("//") && !cb.startsWith("/account")
+      ? cb
+      : "/";
 
   // 비로그인 — 로그인 화면(view-07-login). .auth-card 마크업 그대로.
   if (!userId) {
@@ -29,7 +42,7 @@ export default async function AccountPage() {
             </div>
             <h1 className="auth-title">다시 오셨네요</h1>
             <p className="auth-sub">멈춘 자리에서, 공식을 이어 쌓아볼까요?</p>
-            <SocialButtons callbackUrl="/account" mode="login" />
+            <SocialButtons callbackUrl={loginCallback} mode="login" />
             <p className="auth-switch">
               아직 포뮬러가 아니신가요? <Link href="/apply">가입하기</Link>
             </p>
@@ -87,17 +100,30 @@ export default async function AccountPage() {
           homepage: me?.homepage ?? null,
           blog: me?.blog ?? null,
         }}
+        nextOnboarding={!me?.onboarded}
       />
 
-      <div className="sec">
-        <h2>알림 · 설정</h2>
-      </div>
-      <p className="page-sub" style={{ marginTop: 0 }}>
-        알림 설정은 곧 제공될 예정이에요.
-      </p>
-      <div style={{ marginTop: 20, maxWidth: 380 }}>
-        <SignOutButton />
-      </div>
+      {/* 알림·설정/온보딩 재진입/탈퇴 — 신규 가입(온보딩 미완료) 중에는 숨김. */}
+      {me?.onboarded && (
+        <>
+          <div className="sec">
+            <h2>알림 · 설정</h2>
+          </div>
+          <p className="page-sub" style={{ marginTop: 0 }}>
+            알림 설정은 곧 제공될 예정이에요.
+          </p>
+          <p className="page-sub" style={{ marginTop: 10 }}>
+            관심사·직무를 다시 고르고 싶나요?{" "}
+            <Link
+              href="/onboarding"
+              style={{ color: "var(--blue)", fontWeight: 600 }}
+            >
+              온보딩 다시 하기
+            </Link>
+          </p>
+          <DeactivateSection />
+        </>
+      )}
       </div>
     </div>
   );

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { auth } from "@/auth";
 import { getArticles, getPopularTop5, getProfile } from "@/lib/queries";
@@ -131,7 +132,14 @@ function FeedCard({ post }: { post: FeedPost }) {
   const tool = firstTool(post);
   const href = `/article/${post.id}`;
   return (
-    <article className="feed-card">
+    <article className="feed-card" style={{ position: "relative" }}>
+      {/* 카드 전체 클릭 오버레이 — 어디를 눌러도 상세로. 위 버튼만 z-index 로 예외 */}
+      <Link
+        href={href}
+        aria-hidden
+        tabIndex={-1}
+        style={{ position: "absolute", inset: 0, zIndex: 1 }}
+      />
       <Link href={href} className={`fcover ${cover}`}>
         {post.cardnews?.coverImageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -196,6 +204,11 @@ export default async function HomePage({
 
   // 비로그인은 하단 가입 CTA. (개인화 인사는 별도 — 현재 히어로는 고정 카피)
   const profile = userId ? await getProfile("me", userId) : null;
+  // 신규 가입(온보딩 미완료) 유저는 프로필 편집부터 시작하도록 안내.
+  // (온보딩 완료/건너뛰기 시 onboarded=true → 더는 리다이렉트 안 함)
+  if (userId && profile && !profile.user.onboarded) {
+    redirect("/account");
+  }
   const displayName = profile?.user.name ?? null;
 
   // getArticles 는 latest/popular 만 지원 → 'saved' 는 saveCount 로 재정렬.
@@ -301,15 +314,7 @@ export default async function HomePage({
           </aside>
 
           <div className="feed-main">
-            <div
-              className="feed-ctrl"
-              style={userId ? { justifyContent: "space-between" } : undefined}
-            >
-              {userId && (
-                <Link href="/article/new" className="write-btn">
-                  + 아티클 추가
-                </Link>
-              )}
+            <div className="feed-ctrl">
               <HomeSortSelect
                 options={SORT_OPTIONS.map((o) => ({
                   value: o.value,
@@ -324,6 +329,13 @@ export default async function HomePage({
                 <FeedCard key={p.id} post={p} />
               ))}
             </div>
+            {userId && (
+              <div style={{ marginTop: 18, textAlign: "left" }}>
+                <Link href="/article/new" className="write-btn">
+                  + 아티클 추가 요청
+                </Link>
+              </div>
+            )}
           </div>
         </div>
 

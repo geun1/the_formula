@@ -11,6 +11,7 @@ import { updateProfile } from "./actions";
 
 export function ProfileForm({
   initial,
+  nextOnboarding = false,
 }: {
   initial: {
     name: string;
@@ -23,6 +24,8 @@ export function ProfileForm({
     homepage: string | null;
     blog: string | null;
   };
+  /** 신규 가입자 — 저장 후 온보딩으로 이어준다. */
+  nextOnboarding?: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -73,6 +76,10 @@ export function ProfileForm({
         return;
       }
       setSaved(true);
+      if (nextOnboarding) {
+        router.push("/onboarding");
+        return;
+      }
       router.refresh();
     });
   };

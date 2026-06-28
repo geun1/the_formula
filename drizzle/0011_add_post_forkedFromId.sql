@@ -1,0 +1,2 @@
+ALTER TABLE "post" ADD COLUMN "forkedFromId" text;--> statement-breakpoint
+ALTER TABLE "post" ADD CONSTRAINT "post_forkedFromId_post_id_fk" FOREIGN KEY ("forkedFromId") REFERENCES "public"."post"("id") ON DELETE set null ON UPDATE no action;

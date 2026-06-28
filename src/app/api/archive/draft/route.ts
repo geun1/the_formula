@@ -88,13 +88,10 @@ export async function POST(req: NextRequest) {
       );
     }
     return NextResponse.json({ draft });
-  } catch (e) {
+  } catch {
+    // 원본 예외 메시지(SDK 내부/환경변수명 등)를 클라이언트에 노출하지 않는다.
     return NextResponse.json(
-      {
-        error: `AI 초안 생성 중 오류가 발생했어요: ${
-          e instanceof Error ? e.message.slice(0, 150) : ""
-        }`,
-      },
+      { error: "AI 초안 생성에 실패했어요. 잠시 후 다시 시도해주세요." },
       { status: 502 },
     );
   }

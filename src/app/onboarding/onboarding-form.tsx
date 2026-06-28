@@ -7,7 +7,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { JOB_ROLES } from "@/lib/contract";
-import { completeOnboarding } from "@/app/actions";
+import { completeOnboarding, skipOnboarding } from "@/app/actions";
 
 const SUGGESTED_INTERESTS = [
   "프롬프트",
@@ -163,8 +163,11 @@ export function OnboardingForm({
           type="button"
           className="btn btn-ghost"
           onClick={() => {
-            router.push("/");
-            router.refresh();
+            startTransition(async () => {
+              await skipOnboarding();
+              router.push("/");
+              router.refresh();
+            });
           }}
           disabled={pending}
         >

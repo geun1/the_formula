@@ -5,9 +5,10 @@ import { useRouter } from "next/navigation";
 import {
   SaveButton,
   ShareButton,
+  ConfirmDialog,
   type ToggleResult,
 } from "@/components/ui";
-import { toggleBookmark, duplicateFormula } from "@/app/actions";
+import { toggleBookmark, deletePost } from "@/app/actions";
 
 /**
  * 실제 서버액션(ActionResult 반환)을 공유 버튼이 기대하는
@@ -28,6 +29,8 @@ export type FormulaActionsProps = {
   shareUrl: string;
   /** 비로그인 시 안내 */
   loggedIn: boolean;
+  /** 작성자 본인 여부(삭제 노출) */
+  isOwner?: boolean;
 };
 
 /**
@@ -40,20 +43,23 @@ export function FormulaActions({
   initialSaveCount,
   shareUrl,
   loggedIn,
+  isOwner = false,
 }: FormulaActionsProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  function onDuplicate() {
+  // 따라하기 — 내용 복제 없이, 원본을 출처로 연결한 새 공식 작성 화면으로 이동.
+  function onFollow() {
+    router.push(`/archive/new?ref=${postId}`);
+  }
+
+  function onDelete() {
     setError(null);
     startTransition(async () => {
-      const res = await duplicateFormula(postId);
-      if (res.ok && res.data) {
-        router.push(`/formula/${res.data.id}`);
-      } else {
-        setError(res.ok ? "복제에 실패했어요." : res.error);
-      }
+      const res = await deletePost(postId);
+      if (res.ok) router.push("/archive");
+      else setError(res.error);
     });
   }
 
@@ -73,13 +79,8 @@ export function FormulaActions({
           </a>
         )}
         {loggedIn ? (
-          <button
-            type="button"
-            className="btn btn-ghost"
-            onClick={onDuplicate}
-            disabled={pending}
-          >
-            {pending ? "복제 중…" : "따라하기"}
+          <button type="button" className="btn btn-ghost" onClick={onFollow}>
+            따라하기
           </button>
         ) : (
           <a href="/account" className="btn btn-ghost">
@@ -87,6 +88,16 @@ export function FormulaActions({
           </a>
         )}
         <ShareButton url={shareUrl} variant="detail" stopPropagation={false} />
+        {isOwner && (
+          <ConfirmDialog
+            onConfirm={onDelete}
+            label="삭제"
+            title="공식을 삭제할까요?"
+            message="이 공식을 삭제하면 되돌릴 수 없어요."
+            className="btn btn-ghost"
+            disabled={pending}
+          />
+        )}
       </div>
       {error && (
         <p style={{ fontSize: 13, color: "#F03E3E", marginTop: 8 }}>{error}</p>

@@ -31,6 +31,7 @@ import {
   ilike,
   inArray,
   isNotNull,
+  isNull,
   or,
   sql,
 } from "drizzle-orm";
@@ -426,6 +427,8 @@ export interface FormulaDetail {
   author: ProfileLite | null;
   /** 이 아카이브가 참고한 아티클(cardnews). relatedArticleId 조회. 없으면 null. */
   sourceArticle: FeedPost | null;
+  /** '따라하기'로 참고한 원본 공식(출처). forkedFromId 조회. 없으면 null. */
+  sourceFormula: { id: string; title: string; authorName: string } | null;
 }
 
 /** 작성자 프로필 요약(상세/카드에서 링크용). */
@@ -552,7 +555,23 @@ export async function getFormula(
     if (srcRows.length) sourceArticle = rowToPost(srcRows[0]);
   }
 
-  return { post, comments, isSaved, isLiked, author, sourceArticle };
+  // 참고한 원본 공식(따라하기 출처). forkedFromId → 단건(제목·작성자).
+  let sourceFormula: FormulaDetail["sourceFormula"] = null;
+  const [selfRow] = await db
+    .select({ forkedFromId: posts.forkedFromId })
+    .from(posts)
+    .where(eq(posts.id, id))
+    .limit(1);
+  if (selfRow?.forkedFromId) {
+    const [src] = await db
+      .select({ id: posts.id, title: posts.title, authorName: posts.authorName })
+      .from(posts)
+      .where(eq(posts.id, selfRow.forkedFromId))
+      .limit(1);
+    if (src) sourceFormula = src;
+  }
+
+  return { post, comments, isSaved, isLiked, author, sourceArticle, sourceFormula };
 }
 
 /**
@@ -840,6 +859,8 @@ export interface MemberCard {
   saveCount: number;
   /** 뷰어가 이 멤버를 저장했는지 (뷰어 없으면 false) */
   isBookmarked: boolean;
+  /** 뷰어가 이 멤버를 팔로우 중인지 (뷰어 없으면 false) */
+  isFollowing: boolean;
 }
 
 /** memberId 기준 멤버 저장 수 맵. */
@@ -880,6 +901,26 @@ async function viewerMemberBookmarkSet(
   return set;
 }
 
+/** 뷰어가 팔로우 중인 멤버 id 집합(주어진 후보 중). 뷰어 없으면 빈 집합. */
+async function viewerFollowingSet(
+  viewerId: string | null | undefined,
+  memberIds: string[],
+): Promise<Set<string>> {
+  const set = new Set<string>();
+  if (!viewerId || !memberIds.length) return set;
+  const rows = await db
+    .select({ followingId: follows.followingId })
+    .from(follows)
+    .where(
+      and(
+        eq(follows.followerId, viewerId),
+        inArray(follows.followingId, memberIds),
+      ),
+    );
+  for (const r of rows) set.add(r.followingId);
+  return set;
+}
+
 /** 뷰어가 특정 멤버를 저장했는지. */
 export async function isMemberBookmarked(
   viewerId: string | null | undefined,
@@ -904,7 +945,7 @@ export async function getMemberDirectory(
   opts: { q?: string; jobRole?: string | null; viewerId?: string | null } = {},
 ): Promise<MemberCard[]> {
   const { q, jobRole, viewerId } = opts;
-  const where = [eq(users.isAgent, false)];
+  const where = [eq(users.isAgent, false), isNull(users.deactivatedAt)];
   if (q && q.trim()) {
     const like = `%${q.trim()}%`;
     where.push(
@@ -929,6 +970,7 @@ export async function getMemberDirectory(
   const followerBy = await followerCountMap(ids);
   const saveBy = await memberSaveCountMap(ids);
   const bookmarkedSet = await viewerMemberBookmarkSet(viewerId, ids);
+  const followingSet = await viewerFollowingSet(viewerId, ids);
 
   return urows.map((u) => {
     const s = stats.get(u.id) ?? {
@@ -953,6 +995,7 @@ export async function getMemberDirectory(
       followerCount: followerBy.get(u.id) ?? 0,
       saveCount: saveBy.get(u.id) ?? 0,
       isBookmarked: bookmarkedSet.has(u.id),
+      isFollowing: followingSet.has(u.id),
     } satisfies MemberCard;
   });
 }
